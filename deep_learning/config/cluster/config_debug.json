@@ -1,0 +1,128 @@
+{
+    "path": {
+        "training": "/work/OT/floodml/data/inputs_debug/training",
+        "validation": "/work/OT/floodml/data/inputs_debug/validation",
+        "mnt": "/work/OT/floodml/data/mnt",
+        "wdir": "/work/OT/floodml/data/wdir_debug_60m",
+        "srtm": "/work/OT/floodml/data/raw_srtm",
+        "merit": "/work/OT/floodml/data/tiled_merit",
+        "hand": "/work/OT/floodml/data/tiled_hand",
+        "gsw": "/work/OT/floodml/data/tiled_gsw",
+        "tiles": "/work/OT/floodml/data/tiles_debug_60m",
+        "ems": "/work/OT/floodml/data/tiled_emsr"
+    },
+    "inputs": {
+        "bands_used": [
+            "s1_vv",
+            "s1_vh"
+        ],
+        "synthetic_bands": [
+            "s1_vvplusvh",
+            "s1_vvovervh",
+            "s1_vhovervv",
+            "s1_vhplusvv"
+        ],
+        "mnt_used": [
+            "srtm_alt",
+            "srtm_asp",
+            "srtm_slp",
+            "merit_alt",
+            "merit_asp",
+            "merit_slp"
+        ],
+        "additional_bands": [
+            {
+                "band": "hand",
+                "path": "/work/OT/floodml/data/tiled_hand"
+            }
+        ]
+    },
+    "ground_truth": {
+        "train": [
+            "gsw"
+        ],
+        "val": [
+            "ems"
+        ],
+        "classes": [
+            "water"
+        ]
+    },
+    "mask_types": {
+        "gsw": {
+            "water": {
+                "type": "threshold",
+                "value": "45"
+            }
+        },
+        "ems": {
+            "water": {
+                "type": "threshold",
+                "value": "3"
+            }
+        }
+    },
+    "preprocessing": {
+        "tile_size": 384,
+        "overlap": 10,
+        "coarse_res_m": 60
+    },
+    "band_values": {
+        "s1_vv": {
+            "min": 0,
+            "max": 0.3
+        },
+        "s1_vh": {
+            "min": 0,
+            "max": 0.3
+        },
+        "s1_vvplusvh": {
+            "min": 0,
+            "max": 2
+        },
+        "s1_vvovervh": {
+            "min": 0,
+            "max": 15
+        },
+        "s1_vhovervv": {
+            "min": 0,
+            "max": 15
+        },
+        "s1_vhplusvv": {
+            "min": 0,
+            "max": 2
+        },
+        "srtm_alt": {
+            "min": 0,
+            "max": 5000
+        },
+        "srtm_asp": {
+            "min": 0,
+            "max": 628
+        },
+        "srtm_slp": {
+            "min": 0,
+            "max": 150
+        },
+        "merit_alt": {
+            "min": 0,
+            "max": 5000
+        },
+        "merit_asp": {
+            "min": 0,
+            "max": 628
+        },
+        "merit_slp": {
+            "min": 0,
+            "max": 150
+        },
+        "hand": {
+            "min": 0,
+            "max": 120
+        }
+    },
+    "hyperparams": {
+        "epochs": 100,
+        "batch_size": 4
+    }
+}

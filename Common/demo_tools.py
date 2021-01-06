@@ -1,0 +1,262 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Creates an output image displaying the flooded area
+Indicates the EPSG projection and the water extent estimation date
+The background is a Googlemap tile
+"""
+
+from osgeo import osr
+import os
+import sys
+import ssl
+import cartopy.crs as ccrs
+import matplotlib.pyplot as plt
+import numpy as np
+import cartopy.io.img_tiles as cimgt
+import matplotlib
+import matplotlib.gridspec as gridspec
+import matplotlib.patches as patches
+from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
+from PIL import Image
+from Common.ImageTools import gdal_warp
+from Common.ImageIO import transform_point
+from Common.GDalDatasetWrapper import GDalDatasetWrapper
+
+
+def draw_scale_bar(ax, central_lat, central_lon, length=20, unit="km"):
+    """
+    Draw a scale bar on the given ax-handle with fixed length
+
+    :param ax: Matplotlib ax-handle
+    :param central_lat: Central latitude expressed in PlateCarree() projection
+    :param central_lon: Central longitude expressed in PlateCarree() projection
+    :param length: Length expressed in the given unit
+    :param unit: Unit as string
+    :return:
+    """
+    merc = ccrs.TransverseMercator(central_lon, central_lat)
+    x0, x1, y0, y1 = ax.get_extent(merc)
+    sbx = x0 + (x1 - x0) * .1  # 10% from the left
+    sby = y0 + (y1 - y0) * .05  # 5% from the bottom
+    bar_xs = [sbx - length * 500, sbx + length * 500]  # Convert to meters (Scale factor 500)
+    ax.plot(bar_xs, [sby, sby],
+            transform=merc,
+            color='k',
+            linewidth=2.5)
+    ax.text(sbx, sby, '%s %s' % (length, unit),
+            transform=merc,
+            horizontalalignment='center',
+            verticalalignment='bottom')
+
+
+def draw_legend(ax3):
+    """
+    Draw legend in a seperate subplot
+
+    :param ax3: Ax-Handle
+    :return:
+    """
+    ax3.set_title("Legend", loc="left")
+    ax3.set_xlim(0, 1)
+    ax3.set_ylim(0, 1)
+    red_sq = patches.Rectangle((0, .5), 0.3, 0.4, linewidth=1, edgecolor='black', facecolor='#CC0000', alpha=1)
+    blue_sq = patches.Rectangle((0., 0), .3, 0.4, linewidth=1, edgecolor='black', facecolor='#0000B8', alpha=1)
+    ax3.add_patch(red_sq)
+    ax3.add_patch(blue_sq)
+    ax3.text(0.35, 0.7, "Estimated flooded areas", fontsize=10)
+    ax3.text(0.35, 0.2, "Permanent water\n(occurrence >60%)", fontsize=10, va='center')
+    ax3.set_xticks([])
+    ax3.set_yticks([])
+    ax3.axis('off')
+
+
+def draw_data_source(ax4, **kwargs):
+    """
+    Draw data source in a separate subplot
+
+    :param ax4: Ax-Handle
+    :param kwargs: Dict to display
+    :return:
+    """
+    ax4.set_title("Data source", loc="left")
+    ax4.set_xticks([])
+    ax4.set_yticks([])
+    ax4.axis('off')
+
+    # TABLE
+
+    epsg="1234"
+    date="20200401"
+    orbit="0123"
+    table_vals = [["Map EPSG", epsg],
+                  ['Data source', 'Sentinel-1'],
+                  ['Acquisition date', str(date)[:4] + '-' + str(date)[4:6] + '-' + str(date)[6:8]],
+                  ['Relative Orbit', orbit]]
+
+    n_lines = len(table_vals)
+    line_width = .2
+    t = ax4.table(cellText=table_vals, loc='top left', cellLoc='left',
+                  bbox=[0., 1 - n_lines * line_width, 1, n_lines * line_width])
+
+
+def draw_disclaimer(ax6):
+    """
+    Draw disclaimer in separate subplot
+
+    :param ax6: Ax-Handle
+    :return:
+    """
+
+    gsw_credit = r"""
+    - This map is derived automatically using the FloodDAM Rapid-Mapping tool. It is derived using a combination of
+      satellite data and was developed during the SCO (Space Climate Observatory)-FloodDAM project. More info:
+      https://www.spaceclimateobservatory.org/flooddam-garonne
+    - How to cite this map: FloodDAM Rapid-Mapping (© CNES-CLS-CS, 2019-2020)
+    - Surface Water Occurrence (GSW) data:
+      Jean-Francois Pekel, Andrew Cottam, Noel Gorelick, Alan S. Belward. High-resolution mapping of global 
+      surface water and its long-term changes. Nature 540, 418-422 (2016). (doi:10.1038/nature20584)
+    - Basemap:
+      Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)
+    """
+    ax6.text(.01, 1, "Disclaimer", fontsize=10, wrap=True, ha='left', linespacing=1,
+             verticalalignment='top',)
+    ax6.text(0, .9, gsw_credit, fontsize=6, wrap=True, ha='left', linespacing=1.1,
+             verticalalignment='top')
+    ax6.set_xticks([])
+    ax6.set_yticks([])
+    ax6.axis('off')
+
+
+def static_display(infile, tile, date, orbit, outfile, gswo_dir):
+    """
+    Create a static display map using the binary inference mask.
+    Overlays the mask over a google-maps/OSM background - Needs internet in order to request the data.
+
+    :param infile: Path to inferece mask (Binary)
+    :param tile: Tile number e.g. 30TXM
+    :param date: Date as string
+    :param orbit: Relative Orbit number with leading zeros
+    :param outfile: Path where the image shall be written to
+    :param gswo_dir: GSW directory containing tiled gsw data in the format TILEID.tif e.g. 30TXM.tif
+    :return:
+    """
+
+    # SSL workaround for urllib certificate path
+    ssl._create_default_https_conext = ssl._create_unverified_context
+
+    ds_in = GDalDatasetWrapper.from_file(infile)
+    data = ds_in.array
+    gt = ds_in.geotransform
+    proj = ds_in.projection
+    inproj = osr.SpatialReference()
+    inproj.ImportFromWkt(proj)
+    projcs = inproj.GetAuthorityCode('PROJCS')
+    epsg = str(ds_in.epsg)
+
+    # Extent
+    extent_ax1 = list(ds_in.extent(order="lonmin-lonmax", dtype=int))
+    extent = list(ds_in.extent(order="lonmin-lonmax", dtype=float))
+    extent_str = ds_in.extent(dtype=str)
+
+    #  Permanent water mask
+    gswo_name = os.path.join(gswo_dir, "%s.tif" % tile)
+    gswo_projected = gdal_warp(gswo_name, t_srs="EPSG:%s" % epsg, te=extent_str, tr="%s %s" % (gt[1], gt[-1]),
+                               r="nearest")
+
+    #  Display the data
+    fig = plt.figure(figsize=(11.69, 8.27))  # A4 in inches
+
+    heights = [1, .25, .45, .25]
+    widths = [1, .5, 1]
+    spec = gridspec.GridSpec(ncols=3, nrows=4, wspace=0.025, hspace=0.2, height_ratios=heights, width_ratios=widths)
+    ax1 = fig.add_subplot(spec[:-1, :-1], projection=ccrs.epsg(projcs), anchor="NW")  # Main map
+    ax2 = fig.add_subplot(spec[0, -1], projection=ccrs.PlateCarree(), anchor="NW")  # World localisation
+    ax3 = fig.add_subplot(spec[1, -1], anchor="NW")  # Legend
+    ax4 = fig.add_subplot(spec[2, -1], anchor="NW")  # Data description
+    ax5 = fig.add_subplot(spec[-1, :2], anchor="NW")  # Disclaimer
+    ax6 = fig.add_subplot(spec[-1, -1], anchor="SE")  # Logos
+    # Cartopy 0.18 bug - No interpolation option available: https://github.com/SciTools/cartopy/issues/1563
+    ax1.set_extent(extent, crs=ccrs.epsg(projcs))
+
+    # Main Background image
+    bg_map = cimgt.GoogleTiles(
+        style="street")
+    ax1.add_image(bg_map, 12, interpolation="spline16")
+
+    # Flooded area display (in red), permanent water in blue
+    masked_data = np.ma.masked_where(data == 0, data)
+    masked_gsw = np.ma.masked_where(gswo_projected.array == 0, data)
+
+    cmap = matplotlib.colors.ListedColormap(["#CC0000"], name='from_list', N=None)  # Color for flooded areas
+    img = ax1.imshow(masked_data, extent=extent, transform=ccrs.epsg(projcs), origin='upper', cmap=plt.get_cmap(cmap),
+                     alpha=0.7, interpolation="nearest")
+    img.set_zorder(1)
+
+    cmap2 = matplotlib.colors.ListedColormap(["#0000b8"], name='from_list', N=None)  # Color for perma areas
+    img2 = ax1.imshow(masked_gsw, extent=extent, transform=ccrs.epsg(projcs),  origin='upper', cmap=plt.get_cmap(cmap2),
+                      alpha=1, interpolation="nearest")
+    img2.set_zorder(2)
+
+    gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                       linewidth=.3, color='gray', alpha=0.8)
+    gl.xlabels_top = False
+    gl.ylabels_right = False
+    gl.xformatter = LONGITUDE_FORMATTER
+    gl.yformatter = LATITUDE_FORMATTER
+    gl.xlabel_style = {'color': 'gray'}
+    gl.ylabel_style = {'color': 'gray'}
+
+    # Scale Bar
+    lonmin, lonmax, latmin, latmax = ax1.get_extent(ccrs.PlateCarree())
+    lon_center = lonmin + (lonmax - lonmin) * .1
+    lat_center = latmin + (latmax - latmin) * .05
+    draw_scale_bar(ax1, central_lat=lat_center, central_lon=lon_center)
+
+    # Location map
+    lat_mean, lon_mean = transform_point((float(np.mean(extent[0:2])), float(np.mean(extent[2:4]))),
+                                         old_epsg=int(epsg), new_epsg=4326)
+
+    # This should be ratio 3:2:
+    ax2.set_extent([lon_mean-15, lon_mean+15, lat_mean-10, lat_mean+10])  # lon1 lon2 latmin1 lat2
+    ax2.set_xticks([])
+    ax2.set_yticks([])
+    qkl_map = cimgt.OSM()
+    ax2.add_image(qkl_map, 8, interpolation="spline16")
+
+    pts_aoi = list()
+    y, x = transform_point((extent_ax1[0], extent_ax1[2]), old_epsg=int(epsg), new_epsg=4326)
+    pts_aoi.append([x, y])
+    y, x = transform_point((extent_ax1[1], extent_ax1[2]), old_epsg=int(epsg), new_epsg=4326)
+    pts_aoi.append([x, y])
+    y, x = transform_point((extent_ax1[1], extent_ax1[3]), old_epsg=int(epsg), new_epsg=4326)
+    pts_aoi.append([x, y])
+    y, x = transform_point((extent_ax1[0], extent_ax1[3]), old_epsg=int(epsg), new_epsg=4326)
+    pts_aoi.append([x, y])
+    y, x = transform_point((extent_ax1[0], extent_ax1[2]), old_epsg=int(epsg), new_epsg=4326)
+    pts_aoi.append([x, y])
+
+    for lin in range(len(pts_aoi) - 1):
+        xs = [pts_aoi[lin][0], pts_aoi[lin+1][0]]
+        ys = [pts_aoi[lin][1], pts_aoi[lin+1][1]]
+        ax2.plot(xs, ys, lw=1, color='red')
+
+    # AX3 - Legend
+    draw_legend(ax3)
+
+    # AX4 - Data information
+    draw_data_source(ax4)
+
+    # AX5 - Disclaimer
+    draw_disclaimer(ax5)
+
+    # AX6 - Logos
+    ax6.set_xticks([])
+    ax6.set_yticks([])
+    im = Image.open(os.path.join(sys.path[0], 'CNES-CLS_logo.png'))
+    ax6.imshow(im, aspect='equal')
+
+    fig.canvas.draw()
+    plt.savefig(outfile, dpi=1000)
+
+    return plt
