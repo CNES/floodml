@@ -140,8 +140,8 @@ def main_preparation(args):
         np.save(namo, vstack_out, allow_pickle=False)
         np.save(namo2, rdn_out, allow_pickle=False)
 
-        print("Water stack size: ", np.size(vstack_out, 0), np.size(vstack_out, 1))
-        print("RDN stack size: ", np.size(rdn_out, 0), np.size(rdn_out, 1))
+        print("Water stack size: ", vstack_out.shape)
+        print("RDN stack size: ", rdn_out.shape)
 
     FileSystem.remove_directory(tmp_dir)
 

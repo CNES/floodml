@@ -173,6 +173,10 @@ class MajaProduct(object):
         raise NotImplementedError
 
     @property
+    def rel_orbit(self):
+        raise NotImplementedError
+
+    @property
     def validity(self):
         raise NotImplementedError
 
