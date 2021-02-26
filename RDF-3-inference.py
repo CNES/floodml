@@ -30,28 +30,37 @@ def main_inference(args):
     sat = args.sentinel
     db_path = args.db_path
     gsw_dir = args.gsw
-    products = Dataset.get_available_products(root=input_folder)
-    print("Number of files found:", len(products))
+    products = Dataset.get_available_products(root=input_folder, platforms=["s%s" % sat])
+    tmp_in = args.tmp_dir
+    FileSystem.create_directory(tmp_in)  # Create if not existing
+
+    print("Number of products found:", len(products))
     [print(f) for f in products]
 
+    # Initialise extent file
+    FileSystem.create_directory(dir_output)
+
+    extent_out = os.path.join(dir_output, "extents.csv")
+    # Write extent file header
+    with open(extent_out, 'a') as the_file:
+        the_file.write('Flood extent in 10x10m^2\n')
+
+    # Main loop
     for prod in products:
 
         # TMP folder
-        tmp_dir = tempfile.mkdtemp(dir=os.getcwd())
+        tmp_dir = tempfile.mkdtemp(dir=tmp_in)
 
         tile = prod.tile
         print("Tile:", tile)
-        # TODO Extend to S2
-        filename = prod._vv
-        date = prod.date.strftime("%Y-%m-%d")
-        orbit = prod.base.split("_")[4]
-        ds_in = GDalDatasetWrapper.from_file(filename)
-        epsg = str(ds_in.epsg)
-        print("EPSG:", epsg)
-
-        extent_str = ds_in.extent(dtype=str)
 
         if sat == 1:  # Sentinel-1 case
+            filename = prod._vv
+            date = prod.date.strftime("%Y-%m-%d")
+            orbit = prod.base.split("_")[4]
+            ds_in = GDalDatasetWrapper.from_file(filename)
+            epsg = str(ds_in.epsg)
+            extent_str = ds_in.extent(dtype=str)
             # MERIT topography file for corresponding tile (S1 case)
             topo_name = os.path.join(merit_dir, tile + ".tif")
             print("\t\t MERIT_file: %s" % topo_name)
@@ -59,7 +68,11 @@ def main_inference(args):
             slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
             v_stack = RDF_tools.s1_inf_stack_builder(filename, slp_norm)
         elif sat == 2:  # Sentinel-2 case
-            v_stack = RDF_tools.s2_inf_stack_builder(filename)
+            filename = prod.find_file(pattern=r"*B0?5(_20m)?.jp2$", depth=5)[0]
+            ds_in = GDalDatasetWrapper.from_file(filename)
+            date = prod.date.strftime("%Y-%m-%d")
+            orbit = prod.rel_orbit
+            v_stack = RDF_tools.s2_inf_stack_builder(prod)
         else:
             raise ValueError("Unknown Sentinel Satellite. Has to be 1 or 2.")
 
@@ -87,9 +100,6 @@ def main_inference(args):
         # Apply nodata
         exout[ds_in.array == 0] = 1
 
-        # Invert values 0 -> 1 and 1 -> 0
-        exout = np.invert(exout)
-
         # Export
         FileSystem.create_directory(dir_output)
 
@@ -108,7 +118,18 @@ def main_inference(args):
         static_display_out = nexout.replace("Inference", "RapidMapping").replace(".tif", ".png")
         dtool.static_display(nexout, tile, date, orbit, static_display_out, gswo_dir=gsw_dir)
 
+        ds_extent = GDalDatasetWrapper.from_file(nexout)
         FileSystem.remove_directory(tmp_dir)
+
+        # Write output file for current product
+        with open(nexout.replace(".tif", ".txt"), 'a') as the_file:
+            the_file.write('%s\n' % os.path.abspath(nexout))
+            the_file.write('%s\n' % os.path.abspath(static_display_out))
+            the_file.write('%s\n' % os.path.abspath(extent_out))
+
+        # Write extent file
+        with open(extent_out, 'a') as the_file:
+            the_file.write('%s,%s\n' % (date, np.count_nonzero(ds_extent.array)))
 
 
 if __name__ == "__main__":

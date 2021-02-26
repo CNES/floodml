@@ -33,6 +33,7 @@ def main_inference(args):
     orbit = args.orbit
     date = args.date
     outag = args.outag
+    tmp_in = args.tmp_dir
 
     if sat == 1:  # Sentinel-1 case
         glob_path = os.path.join(input_folder, '**/**', 's1*%s*vv*%s*%s*.tif' % (tile, orbit, date))
@@ -51,7 +52,7 @@ def main_inference(args):
         for filename in files:
 
             # TMP folder
-            tmp_dir = tempfile.mkdtemp(dir=os.getcwd())
+            tmp_dir = tempfile.mkdtemp(dir=tmp_in)
 
             tile = args.tile_ref
             print("Tile:", tile)

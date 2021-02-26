@@ -64,6 +64,10 @@ class Sentinel2Natif(MajaProduct):
         return datetime.strptime(str_date, "%Y%m%dT%H%M%S")
 
     @property
+    def rel_orbit(self):
+        return self.base.split("_")[4]
+
+    @property
     def validity(self):
         if os.path.exists(self.metadata_file):
             return True
@@ -88,8 +92,7 @@ class Sentinel2Natif(MajaProduct):
                  "val": str(self.mnt_resolution[0] * 2) + " " + str(self.mnt_resolution[1] * 2)}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
-        wdir = kwargs.get("wdir", self.fpath)
-        output_folder = os.path.join(wdir, self.base)
+        output_folder = kwargs.get("wdir", self.fpath)
         output_bname = "_".join([self.base.split(".")[0], synthetic_band.upper() + ".tif"])
         output_filename = kwargs.get("output_filename", os.path.join(output_folder, output_bname))
         max_value = kwargs.get("max_value", 10000.)
@@ -98,24 +101,28 @@ class Sentinel2Natif(MajaProduct):
             return output_filename
         if synthetic_band.lower() == "ndvi":
             FileSystem.create_directory(output_folder)
-            b4 = self.find_file(pattern=r"*B0?4(_10m)?.jp2$")[0]
-            b8 = self.find_file(pattern=r"*B0?8(_10m)?.jp2$")[0]
+            b4 = self.find_file(pattern=r"*B0?4(_10m)?.jp2$", depth=5)[0]
+            b8 = self.find_file(pattern=r"*B0?8(_10m)?.jp2$", depth=5)[0]
             ds_red = GDalDatasetWrapper.from_file(b4)
             ds_nir = GDalDatasetWrapper.from_file(b8)
             ds_ndvi = ImageApps.get_ndvi(ds_red, ds_nir, vrange=(0, max_value), dtype=np.int16)
             ds_ndvi.write(output_filename, options=["COMPRESS=DEFLATE"])
-        elif synthetic_band.lower() == "ndsi":
+        elif synthetic_band.lower() == "mndwi":
+            # TODO Check if the right bands are used
+            # TODO Resample to 10m?
             FileSystem.create_directory(output_folder)
-            b3 = self.find_file(pattern=r"*B0?3(_10m)?.jp2$")[0]
-            b11 = self.find_file(pattern=r"*B11(_20m)?.jp2$")[0]
+            b3 = self.find_file(pattern=r"*B0?3(_10m)?.jp2$", depth=5)[0]
+            b11 = self.find_file(pattern=r"*B11(_20m)?.jp2$", depth=5)[0]
             ds_green = ImageTools.gdal_translate(b3, tr="20 20", r="cubic")
             ds_swir = GDalDatasetWrapper.from_file(b11)
+            print(ds_green.resolution, ds_swir.resolution)
+
             ds_ndsi = ImageApps.get_ndsi(ds_green, ds_swir, vrange=(0, max_value), dtype=np.int16)
             ds_ndsi.write(output_filename, options=["COMPRESS=DEFLATE"])
         elif synthetic_band.lower() == "mca_sim":
             FileSystem.create_directory(output_folder)
-            b4 = self.find_file(pattern=r"*B0?4(_10m)?.jp2$")[0]
-            b3 = self.find_file(pattern=r"*B0?3(_10m)?.jp2$")[0]
+            b4 = self.find_file(pattern=r"*B0?4(_10m)?.jp2$", depth=5)[0]
+            b3 = self.find_file(pattern=r"*B0?3(_10m)?.jp2$", depth=5)[0]
             img_red, drv = ImageIO.tiff_to_array(b4, array_only=False)
             img_green = ImageIO.tiff_to_array(b3)
             img_mcasim = (img_red + img_green) / 2

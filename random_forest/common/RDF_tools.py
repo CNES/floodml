@@ -120,14 +120,14 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
     """
 
     for j, s2 in enumerate(s2files):
-        prod = Product.MajaProduct.factory(os.path.basename(s2))
+        prod = Product.MajaProduct.factory(s2)
         print("\t ("+str(j+1)+"/"+str(len(s2files))+")")
         print(prod)
         print(glob.glob(os.path.join(s2, "index", "*_MNDWI.tif")))
 
         # MNDWI and NDVI file loading:
-        ds_mndwi = GDalDatasetWrapper.from_file(glob.glob(os.path.join(s2, "index", "*_MNDWI.tif"))[0])
-        ds_ndvi = GDalDatasetWrapper.from_file(glob.glob(os.path.join(s2, "index", "*_NDVI.tif"))[0])
+        ds_mndwi = gdal_warp(prod.get_synthetic_band("mndwi"), tr="20 20")
+        ds_ndvi = gdal_warp(prod.get_synthetic_band("ndvi"), tr="20 20")
         mndwi = ds_mndwi.array
         ndvi = ds_ndvi.array
 
@@ -240,22 +240,20 @@ def s1_inf_stack_builder(filename, slp_norm):
     return vstack
 
 
-def s2_inf_stack_builder(filename):
+def s2_inf_stack_builder(product):
 
     """
     Stack builder for Sentinel-2 files for inference purposes
-    :param filename:  Sentinel-2 path and filename for inference
+
+    :param product:  Sentinel-2 L2A product
     :return: Stack array for inference
     """
 
     # MNDWI and NDVI file loading:
-    ds_mndwi = GDalDatasetWrapper.from_file(filename)
-    ds_ndvi = GDalDatasetWrapper.from_file(filename.replace('_MNDWI.tif', '_NDVI.tif'))
+    ds_mndwi = gdal_warp(product.get_synthetic_band("mndwi"), tr="20 20")
+    ds_ndvi = gdal_warp(product.get_synthetic_band("ndvi"), tr="20 20")
     mndwi = ds_mndwi.array
     ndvi = ds_ndvi.array
-
-    if len(np.where(ndvi > -10000)[0]) != 0:
-        raise ValueError("Array contains only nodata values.")
 
     mndwi = mndwi / 5000
     ndvi = ndvi / 5000
