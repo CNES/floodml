@@ -117,7 +117,7 @@ def main_training(args):
     yrdn = np.zeros((train_concat.shape[0], 1), dtype=np.float32)
 
     # Concat ########################################
-    xb = np.vstack((train_concat, gt_concat))
+    xb = np.vstack((gt_concat, train_concat))
     yb = np.vstack((yvt, yrdn))
 
     # Classif ######################################
