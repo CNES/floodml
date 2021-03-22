@@ -16,7 +16,7 @@ from scipy.ndimage.filters import uniform_filter
 from scipy.ndimage.measurements import variance
 from functools import reduce
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
-from Common.ImageTools import gdal_warp
+from Common.ImageTools import gdal_warp, gdal_buildvrt
 from Common import FileSystem
 from Chain import Product
 
@@ -167,20 +167,21 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
     return vstack_s2, rdn_stack
 
 
-def slope_creator(tmpdir, epsg, extent_str, topo_name):
+def slope_creator(tmpdir, epsg, extent_str, topo_names):
     """
     :param tmpdir: temporary folder
     :param epsg: epsg tile number
     :param extent_str: tile extent
-    :param topo_name: DEM filename from which SLP calculation will be made
+    :param topo_names: DEM filenames from which SLP calculation will be made
     :return: normalized slope tile & index of pixels to be rejected
     """
     # Conversion to float32 format
-
+    tmpvrt = os.path.join(tmpdir, "Temp_vrt.vrt")
     tmpwarp = os.path.join(tmpdir, "Temp_32.tif")
     tmpslope = os.path.join(tmpdir, "Temp_slope.tif")
 
-    gdal_warp(topo_name, tmpwarp, s_srs="EPSG:4326", t_srs="EPSG:%s" % epsg)
+    gdal_buildvrt(*topo_names, dst=tmpvrt)
+    gdal_warp(tmpvrt, tmpwarp, s_srs="EPSG:4326", t_srs="EPSG:%s" % epsg, te=extent_str)
 
     # Slope formation
     os.system("gdaldem slope -q -of GTiff %s %s" % (tmpwarp, tmpslope))

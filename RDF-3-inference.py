@@ -15,11 +15,12 @@ import argparse
 from random_forest.common import RDF_tools
 import tempfile
 import progressbar
-from datetime import datetime
 import Common.demo_tools as dtool
 from Common import FileSystem
 from deep_learning.Imagery.Dataset import Dataset
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
+from Common.ImageIO import transform_point
+from Chain.DEM import get_copdem_codes
 
 
 def main_inference(args):
@@ -27,6 +28,7 @@ def main_inference(args):
     input_folder = args.input
     dir_output = args.Inf_ouput
     merit_dir = args.meritdir
+    copdem_dir = args.copdemdir
     sat = args.sentinel
     db_path = args.db_path
     gsw_dir = args.gsw
@@ -39,6 +41,9 @@ def main_inference(args):
 
     # Initialise extent file
     FileSystem.create_directory(dir_output)
+
+    # Select DEM based on provided paths
+    dem_choice = "copernicus" if copdem_dir else "merit"
 
     extent_out = os.path.join(dir_output, "extents.csv")
     # Write extent file header
@@ -62,9 +67,14 @@ def main_inference(args):
             epsg = str(ds_in.epsg)
             extent_str = ds_in.extent(dtype=str)
             # MERIT topography file for corresponding tile (S1 case)
-            topo_name = os.path.join(merit_dir, tile + ".tif")
-            print("\t\t MERIT_file: %s" % topo_name)
-            slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_name)
+            if dem_choice == "copernicus":
+                ul_lonlat = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
+                lr_lonlat = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
+                topo_names = get_copdem_codes(copdem_dir, ul_lonlat, lr_lonlat)
+            else:
+                topo_names = [os.path.join(merit_dir, tile + ".tif")]
+            print("\t\t MERIT_file: %s" % topo_names)
+            slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names)
             slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
             v_stack = RDF_tools.s1_inf_stack_builder(filename, slp_norm)
         elif sat == 2:  # Sentinel-2 case
@@ -76,6 +86,7 @@ def main_inference(args):
         else:
             raise ValueError("Unknown Sentinel Satellite. Has to be 1 or 2.")
 
+        exit(1)
         n_divisions = 20
         windows = np.array_split(v_stack, n_divisions, axis=0)
         predictions = []
@@ -137,7 +148,12 @@ if __name__ == "__main__":
 
     parser.add_argument('-i', '--input', help='Input EMSR folder', type=str, required=True)
     parser.add_argument('-o', '--Inf_ouput', help='Output folder', type=str, required=True)
-    parser.add_argument('-m', '--meritdir', help='MERIT files folder (for slope)', required=True)
+    parser.add_argument('-m', '--meritdir', help='MERIT DEM folder.'
+                                                 'Either this or --copdemdir has to be set for sentinel 1.',
+                        type=str, required=False)
+    parser.add_argument('-c', '--copdemdir', help='Copernicus DEM folder.'
+                                                  'Either this or --meritdir has to be set for sentinel 1.',
+                        type=str, required=False)
     parser.add_argument('--sentinel', help='S1 or S2', type=int, required=True, choices=[1, 2])
     parser.add_argument('-db', '--db_path', help='Learning database filepath', type=str, required=True)
     parser.add_argument('-tmp', '--tmp_dir', help='Global DB output folder ', type=str, required=False)
