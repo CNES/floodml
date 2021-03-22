@@ -90,7 +90,8 @@ def gdal_write(drv_type, img, dst, projection, coordinates, **kwargs):
     if not dtype:
         dtype = gdal_array.NumericTypeCodeToGDALTypeCode(img.dtype)
     img_h, img_w, n_bands = img.shape
-    mem = driver.Create(dst, img_w, img_h, n_bands, dtype, options)
+    #mem = driver.Create(dst, img_w, img_h, n_bands, dtype, options)
+    mem = driver.Create(dst, img_w, img_h, n_bands, dtype, ['COMPRESS=LZW'])
     mem.SetGeoTransform(coordinates)
     mem.SetProjection(projection)
 
