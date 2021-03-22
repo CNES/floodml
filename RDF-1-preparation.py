@@ -18,6 +18,8 @@ import tempfile
 from Common import FileSystem
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageTools import gdal_warp
+from Common.ImageIO import transform_point
+from Chain.DEM import get_copdem_codes
 
 
 def main_preparation(args):
@@ -25,6 +27,7 @@ def main_preparation(args):
     gsw_dir = args.gsw
     db_dirout = args.output
     merit_dir = args.meritdir
+    copdem_dir = args.copdemdir
     sat = args.sentinel
     emsr_numbers = args.emsr_numbers
     tag = args.suffix
@@ -32,6 +35,10 @@ def main_preparation(args):
     # EMSR directories listing
     emsr_list = glob.glob(os.path.join(emsr_dir, "EMSR*"), recursive=False)
 
+    # Select DEM based on provided paths
+    dem_choice = "copernicus" if copdem_dir else "merit"
+
+    # Create Temporary file-directory
     tmp_dir = tempfile.mkdtemp(dir=os.getcwd())
 
     os.environ["PATH"] = os.environ["PATH"].split(";")[-1]
@@ -93,11 +100,16 @@ def main_preparation(args):
 
             # Parsing for each file of each tile of each EMSR case
             if sat == 1:  # Sentinel-1 case
-                # MERIT topography file for corresponding tile (S1 case)
-                topo_name = os.path.join(merit_dir, tile + ".tif")
+                # MERIT or Copernicus-DEM topography files for corresponding tile (S1 case)
+                if dem_choice == "copernicus":
+                    ul_lonlat = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
+                    lr_lonlat = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
+                    topo_names = get_copdem_codes(copdem_dir, ul_lonlat, lr_lonlat)
+                else:
+                    topo_names = [os.path.join(merit_dir, tile + ".tif")]
 
-                print("\t\t MERIT_file:  ", topo_name)
-                slp_norm, idx_reject_slp = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_name)
+                print("\t\t DEM files:  ", topo_names)
+                slp_norm, idx_reject_slp = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names)
 
                 # Water proof areas (where water occurrence >90% and slopes <10°)
                 imask_roi = np.ravel(np.flatnonzero(mask_gswo > 0))
@@ -154,7 +166,12 @@ if __name__ == "__main__":
     parser.add_argument('--sentinel', help='S1 or S2', type=int, required=True, choices=[1, 2])
     parser.add_argument('-n', '--emsr_numbers', help='EMSR cases name', nargs='+', type=int)
     parser.add_argument('-o', '--output', help='Output folder (NPY folder)', type=str, required=True)
-    parser.add_argument('-m', '--meritdir', help='MERIT DEM folder', type=str, required=True)
+    parser.add_argument('-m', '--meritdir', help='MERIT DEM folder.'
+                                                 'Either this or --copdemdir has to be set for sentinel 1.',
+                        type=str, required=False)
+    parser.add_argument('-c', '--copdemdir', help='Copernicus DEM folder.'
+                                                  'Either this or --meritdir has to be set for sentinel 1.',
+                        type=str, required=False)
     parser.add_argument('-s', '--suffix', help='Suffix tag', type=str, required=False)
     arg = parser.parse_args()
 
