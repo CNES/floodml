@@ -12,6 +12,9 @@ import os
 import joblib
 import numpy as np
 import argparse
+
+from numpy import ulonglong
+
 from random_forest.common import RDF_tools
 import tempfile
 import progressbar
@@ -68,9 +71,10 @@ def main_inference(args):
             extent_str = ds_in.extent(dtype=str)
             # MERIT topography file for corresponding tile (S1 case)
             if dem_choice == "copernicus":
-                ul_lonlat = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
-                lr_lonlat = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
-                topo_names = get_copdem_codes(copdem_dir, ul_lonlat, lr_lonlat)
+                ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
+                lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
+                topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
+                print(ul_latlon, lr_latlon)
             else:
                 topo_names = [os.path.join(merit_dir, tile + ".tif")]
             print("\t\t MERIT_file: %s" % topo_names)
@@ -86,7 +90,6 @@ def main_inference(args):
         else:
             raise ValueError("Unknown Sentinel Satellite. Has to be 1 or 2.")
 
-        exit(1)
         n_divisions = 20
         windows = np.array_split(v_stack, n_divisions, axis=0)
         predictions = []
@@ -156,7 +159,7 @@ if __name__ == "__main__":
                         type=str, required=False)
     parser.add_argument('--sentinel', help='S1 or S2', type=int, required=True, choices=[1, 2])
     parser.add_argument('-db', '--db_path', help='Learning database filepath', type=str, required=True)
-    parser.add_argument('-tmp', '--tmp_dir', help='Global DB output folder ', type=str, required=False)
+    parser.add_argument('-tmp', '--tmp_dir', help='Global DB output folder ', type=str, required=False, default="tmp")
     parser.add_argument('-g', '--gsw', help='Tiled GSW folder', type=str, required=True)
 
     arg = parser.parse_args()

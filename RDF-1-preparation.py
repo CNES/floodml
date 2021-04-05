@@ -102,9 +102,9 @@ def main_preparation(args):
             if sat == 1:  # Sentinel-1 case
                 # MERIT or Copernicus-DEM topography files for corresponding tile (S1 case)
                 if dem_choice == "copernicus":
-                    ul_lonlat = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
-                    lr_lonlat = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
-                    topo_names = get_copdem_codes(copdem_dir, ul_lonlat, lr_lonlat)
+                    ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
+                    lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
+                    topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
                 else:
                     topo_names = [os.path.join(merit_dir, tile + ".tif")]
 
