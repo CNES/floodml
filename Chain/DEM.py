@@ -22,25 +22,8 @@ def get_copdem_codes(demdir, ul, lr):
     :return: The list of filenames needed in order to cover to whole site.
     """
     import math
-    if ul[1] > 0:
-        f_ul2 = math.floor
-    else:
-        f_ul2 = math.ceil
-    if ul[0] > 0:
-        f_ul1 = math.floor
-    else:
-        f_ul1 = math.ceil
-    ul_latlon = [f_ul1(ul[1]), f_ul2(ul[0])]
-
-    if lr[1] > 0:
-        f_lr2 = math.ceil
-    else:
-        f_lr2 = math.floor
-    if lr[0] > 0:
-        f_lr1 = math.ceil
-    else:
-        f_lr1 = math.floor
-    lr_latlon = [f_lr1(lr[1]), f_lr2(lr[0])]
+    ul_latlon = [math.floor(ul[1]), math.ceil(ul[0])]
+    lr_latlon = [math.ceil(lr[1]), math.floor(lr[0])]
     dem_files = []
     for y in range(lr_latlon[1], ul_latlon[1]):
         for x in range(ul_latlon[0], lr_latlon[0]):
