@@ -295,6 +295,66 @@ class TestImageTools(unittest.TestCase):
         self.assertEqual(ds_optfile.nodata_value, 0)
         self.assertEqual(ds_optfile.epsg, 32631)
 
+    def test_gdal_rasterize(self):
+        gml = """<?xml version="1.0" encoding="UTF-8"?>
+                 <eop:Mask xmlns:eop="http://www.opengis.net/eop/2.0"
+                 xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+                 xmlns:gml="http://www.opengis.net/gml/3.2"
+                 gml:id="S2A_OPER_MSK_CLOUDS_MTI__20190920T111121_A022170_T31UFR_B00_MSIL1C">
+                   <gml:name>MSK_CLOUDS pixels mask</gml:name>
+                   <gml:boundedBy>
+                      <gml:Envelope srsName="urn:ogc:def:crs:EPSG:8.7:32631">
+                      <gml:lowerCorner>602040 5508300</gml:lowerCorner>
+                      <gml:upperCorner>709800 5600040</gml:upperCorner>
+                     </gml:Envelope>
+                   </gml:boundedBy>
+                   <eop:maskMembers>
+                     <eop:MaskFeature gml:id="CIRRUS.0">
+                       <eop:maskType codeSpace="urn:gs2:S2PDGS:maskType">CIRRUS</eop:maskType>
+                       <eop:extentOf>
+                         <gml:Polygon gml:id="CIRRUS.0_Polygon">
+                           <gml:exterior>
+                             <gml:LinearRing>
+                               <gml:posList srsDimension="2">709800 5508300 602040 5600040 709800 5600040</gml:posList>
+                             </gml:LinearRing>
+                           </gml:exterior>
+                         </gml:Polygon>
+                       </eop:extentOf>
+                     </eop:MaskFeature>
+                   </eop:maskMembers>
+                 </eop:Mask>"""
+
+        gml_path = "test_gdal_rasterize.gml"
+        with open(gml_path, "w+") as f:
+            f.writelines(gml)
+
+        out_resolution = (10000, -10000)
+        self.assertTrue(os.path.exists(gml_path))
+        dst = "test_gdal_rasterize.tif"
+        ds = ImageTools.gdal_rasterize(gml_path, dst=dst,
+                                       tr="%s %s" % (out_resolution[0], out_resolution[1]),
+                                       burn=0, a_nodata=1000, a_srs="EPSG:32631",
+                                       te="600000.000 5490240.000 709800.000 5600040.000")
+
+        ref = [[1000., 0., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                [1000., 1000., 0., 0., 0., 0., 0., 0., 0., 0., 0.],
+                [1000., 1000., 1000., 0., 0., 0., 0., 0., 0., 0., 0.],
+                [1000., 1000., 1000., 1000., 0., 0., 0., 0., 0., 0., 0.],
+                [1000., 1000., 1000., 1000., 1000., 0., 0., 0., 0., 0., 0.],
+                [1000., 1000., 1000., 1000., 1000., 1000., 1000., 0., 0., 0., 0.],
+                [1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 0., 0., 0.],
+                [1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 0., 0.],
+                [1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 0.],
+                [1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000.],
+                [1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000., 1000.]]
+
+        self.assertTrue(os.path.isfile(dst))
+        self.assertEqual(ds.resolution, out_resolution)
+        self.assertEqual(ds.array.shape, (11, 11))
+        FileSystem.remove_file(gml_path)
+        np.testing.assert_almost_equal(ds.array, ref)
+        FileSystem.remove_file(dst)
+
 
 if __name__ == '__main__':
     unittest.main()

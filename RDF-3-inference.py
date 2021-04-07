@@ -23,6 +23,7 @@ from Common import FileSystem
 from deep_learning.Imagery.Dataset import Dataset
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageIO import transform_point
+from Common import ImageTools
 from Chain.DEM import get_copdem_codes
 
 
@@ -113,6 +114,18 @@ def main_inference(args):
 
         # Apply nodata
         exout[ds_in.array == 0] = 1
+
+        if sat == 2:
+            # S2 currently needs to be inverted
+            # TODO Fix this
+            exout = 1 - exout
+            gml_path = prod.find_file(pattern=r"MSK_CLOUDS\w+.gml$", depth=5)[0]
+            dst = ImageTools.gdal_rasterize(gml_path,
+                                            tr="%s %s" % (ds_in.resolution[0], ds_in.resolution[1]),
+                                            burn=1, a_nodata=0, a_srs="EPSG:%s" % ds_in.epsg,
+                                            te=ds_in.extent(dtype=str))
+            # Add cloud layer
+            exout[dst > 0] = 2
 
         # Export
         FileSystem.create_directory(dir_output)

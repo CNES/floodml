@@ -15,7 +15,7 @@ import numpy as np
 import uuid
 from osgeo import gdal
 from Common import FileSystem
-from Common.GDal import buildvrt, translate, warp
+from Common.GDal import buildvrt, translate, warp, rasterize
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 
 
@@ -204,3 +204,18 @@ def gdal_retile(src, dst, **options):
     if type(src) == GDalDatasetWrapper:
         src = src.get_ds()
     raise NotImplementedError
+
+
+def gdal_rasterize(src, dst=None, **options):
+    """
+    Rasterize a dataset.
+
+    :param src: The input filename or dataset.
+    :param dst: If specified, the output will be writen to
+    the given path on a physical disk.
+    Note: This overwrites a previous file at the same location.
+    :return: A :class:`Common.GDalDatasetWrapper.GDalDatasetWrapper` object
+    :rtype: `osgeo.gdal.dataset` or file on disk (see parameter ``dst``).
+    """
+    return rasterize.gdal_rasterize(src, dst=dst, **options)
+
