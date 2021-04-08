@@ -73,12 +73,12 @@ class TestDemoTools(unittest.TestCase):
         ds = GDalDatasetWrapper(array=arr, projection=self.projection, geotransform=self.coordinates)
         ds.write(self.infile, dtype=np.uint8)
         plt_return = demo_tools.static_display(self.infile, outfile=self.outfile, tile=self.tile,
-                                               orbit=self.orbit, date=self.date, gswo_dir=self.gsw_dir)
+                                               orbit=self.orbit, date=self.date, gswo_dir=self.gsw_dir, sentinel=1)
         self.assertIsNotNone(plt_return)
 
     def test_draw_legend(self):
         ax = plt.gca()
-        demo_tools.draw_legend(ax)
+        demo_tools.draw_legend(ax, sentinel=1)
         plt.show()
 
     def test_draw_disclaimer(self):

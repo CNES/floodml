@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
-Project:        FloodML, CNES
+Author:         Peter KETTIG <peter.kettig@cnes.fr>
 """
-
 
 import os
 import tempfile
@@ -40,19 +39,13 @@ class MNT(object):
         self.dem_dir = kwargs.get("dem_dir", os.path.join(tempfile.gettempdir(), "maja_dem_files"))
         if not os.path.isdir(self.dem_dir):
             FileSystem.create_directory(self.dem_dir)
-        self.wdir = kwargs.get("wdir", None)
-        if not self.wdir:
-            self.wdir = self.dem_dir
+        self.wdir = kwargs.get("wdir", tempfile.mkdtemp(prefix="prepare_mnt_"))
         if not os.path.isdir(self.wdir):
             FileSystem.create_directory(self.wdir)
-        self.raw_dem = kwargs.get("raw_dem", None)
-        if not self.raw_dem:
-            self.raw_dem = self.wdir
+        self.raw_dem = kwargs.get("raw_dem", tempfile.mkdtemp(prefix="raw_dem_"))
         if not os.path.exists(self.raw_dem):
             FileSystem.create_directory(self.raw_dem)
-        self.raw_gsw = kwargs.get("raw_gsw", None)
-        if not self.raw_gsw:
-            self.raw_gsw = self.wdir
+        self.raw_gsw = kwargs.get("raw_gsw", tempfile.mkdtemp(prefix="raw_gsw_"))
         if not os.path.exists(self.raw_gsw):
             FileSystem.create_directory(self.raw_gsw)
         self.gsw_codes = self.get_gsw_codes(self.site)

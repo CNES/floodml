@@ -153,9 +153,9 @@ class TestGdalDatasetWrapper(unittest.TestCase):
         self.assertEqual((ulx, uly), (300000.0, 4900020.0))
         self.assertEqual((lrx, lry), (310000.0, 4890020.0))
         self.assertEqual(ds.extent(), (300000.0, 4890020.0, 310000.0, 4900020.0))
-        self.assertEqual(ds.extent(order="lonmin-lonmax", dtype=np.int), (300000, 310000, 4900020, 4890020))
+        self.assertEqual(ds.extent(order="lonmin-lonmax", dtype=np.int), (300000, 310000, 4890020, 4900020))
         self.assertEqual(ds.extent(dtype=str), "300000 4890020 310000 4900020")
-        self.assertEqual(ds.extent(order="lonmin-lonmax", dtype=str), "300000 310000 4900020 4890020")
+        self.assertEqual(ds.extent(order="lonmin-lonmax", dtype=str), "300000 310000 4890020 4900020")
         FileSystem.remove_file(path)
         self.assertFalse(os.path.exists(path))
 

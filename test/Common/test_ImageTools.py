@@ -354,6 +354,7 @@ class TestImageTools(unittest.TestCase):
         FileSystem.remove_file(gml_path)
         np.testing.assert_almost_equal(ds.array, ref)
         FileSystem.remove_file(dst)
+        FileSystem.remove_file(gml_path.replace("gml","gfs"))
 
 
 if __name__ == '__main__':

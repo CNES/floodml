@@ -48,8 +48,8 @@ class TestImageTools(unittest.TestCase):
         np.testing.assert_almost_equal(calculated.array, expected)
         self.assertEqual(calculated.resolution, ds_swir.resolution)
         self.assertEqual(calculated.resolution, ds_red.resolution)
-        self.assertEqual(calculated.extent, ds_red.extent)
-        self.assertEqual(calculated.extent, ds_swir.extent)
+        self.assertEqual(calculated.extent(), ds_red.extent())
+        self.assertEqual(calculated.extent(), ds_swir.extent())
 
     def test_get_ndsi_int16(self):
         swir = np.array(np.arange(0, 9).reshape(3, 3), dtype=np.int16)
@@ -67,8 +67,8 @@ class TestImageTools(unittest.TestCase):
         np.testing.assert_almost_equal(calculated.array, expected)
         self.assertEqual(calculated.resolution, ds_swir.resolution)
         self.assertEqual(calculated.resolution, ds_red.resolution)
-        self.assertEqual(calculated.extent, ds_red.extent)
-        self.assertEqual(calculated.extent, ds_swir.extent)
+        self.assertEqual(calculated.extent(), ds_red.extent())
+        self.assertEqual(calculated.extent(), ds_swir.extent())
 
     def test_get_ndvi_float32(self):
         nir = np.arange(0, 9).reshape(3, 3)
@@ -87,8 +87,8 @@ class TestImageTools(unittest.TestCase):
         np.testing.assert_almost_equal(calculated.array, expected)
         self.assertEqual(calculated.resolution, ds_nir.resolution)
         self.assertEqual(calculated.resolution, ds_red.resolution)
-        self.assertEqual(calculated.extent, ds_red.extent)
-        self.assertEqual(calculated.extent, ds_nir.extent)
+        self.assertEqual(calculated.extent(), ds_red.extent())
+        self.assertEqual(calculated.extent(), ds_nir.extent())
 
     def test_get_ndvi_int16(self):
         nir = np.arange(0, 9).reshape(3, 3)
@@ -106,8 +106,8 @@ class TestImageTools(unittest.TestCase):
         np.testing.assert_almost_equal(calculated.array, expected)
         self.assertEqual(calculated.resolution, ds_nir.resolution)
         self.assertEqual(calculated.resolution, ds_red.resolution)
-        self.assertEqual(calculated.extent, ds_red.extent)
-        self.assertEqual(calculated.extent, ds_nir.extent)
+        self.assertEqual(calculated.extent(), ds_red.extent())
+        self.assertEqual(calculated.extent(), ds_nir.extent())
 
     def test_split_image(self):
         stacked = np.arange(0, 12).reshape((2, 2, 3))

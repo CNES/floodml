@@ -170,7 +170,11 @@ class GDalDatasetWrapper(object):
     def extent(self, order="lonmin-latmin", dtype=float):
         """
         Return the gdal-typical xmin, ymin, xmax, ymax format for the raster extent
-
+        
+        :param order: Order in which the first two elements are arranged. One of 'lonmin-latmin' or 'lonmin-lonmax'.
+        :param dtype: The datatype in which each element is returned. Has to be one of [int, str, float].
+        Default is float. For all numeric types it returns a n-element tuple.
+        For string a single string concatenated by spaces.
         :return: xmin, ymin, xmax, ymax
         :rtype: tuple of dtype or str
         """
