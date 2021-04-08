@@ -202,9 +202,9 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     ax1.set_extent(extent, crs=ccrs.epsg(projcs))
 
     # Main Background image
-    # bg_map = cimgt.GoogleTiles(
-    #     style="street")
-    #   ax1.add_image(bg_map, 10)
+    bg_map = cimgt.GoogleTiles(
+        style="street")
+    ax1.add_image(bg_map, 10)
 
     gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                        linewidth=.3, color='gray', alpha=0.8)
@@ -267,8 +267,8 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     ax2.set_extent([lon_mean-15, lon_mean+15, lat_mean-10, lat_mean+10])  # lon1 lon2 latmin1 lat2
     ax2.set_xticks([])
     ax2.set_yticks([])
-    #qkl_map = cimgt.OSM()
-    #ax2.add_image(qkl_map, 8)
+    qkl_map = cimgt.OSM()
+    ax2.add_image(qkl_map, 8)
 
     pts_aoi = list()
     y, x = transform_point((extent_ax1[0], extent_ax1[2]), old_epsg=int(epsg), new_epsg=4326)
