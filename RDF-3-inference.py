@@ -20,7 +20,6 @@ from Common import FileSystem
 from deep_learning.Imagery.Dataset import Dataset
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageIO import transform_point
-from Common import ImageTools
 from Chain.DEM import get_copdem_codes
 
 
@@ -66,7 +65,6 @@ def main_inference(args):
 
         if sat == 1:  # Sentinel-1 case
             filename = prod._vv
-            date = prod.date.strftime("%Y%m%dT%H%M%S")
             orbit = prod.base.split("_")[4]
             ds_in = GDalDatasetWrapper.from_file(filename)
             epsg = str(ds_in.epsg)
@@ -138,7 +136,8 @@ def main_inference(args):
         ds_out.write(nexout, options=["COMPRESS=LZW"], nodata=255)
 
         static_display_out = nexout.replace("Inference", "RapidMapping").replace(".tif", ".png")
-        dtool.static_display(nexout, tile, date, orbit, static_display_out, gswo_dir=gsw_dir, sentinel=sat)
+        dtool.static_display(nexout, tile, prod.date.strftime("%Y-%m-%d %H:%M:%S"), orbit, static_display_out,
+                             gswo_dir=gsw_dir, sentinel=sat)
 
         ds_extent = GDalDatasetWrapper.from_file(nexout)
         FileSystem.remove_directory(tmp_dir)

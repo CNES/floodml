@@ -47,7 +47,7 @@ def draw_scale_bar(ax, central_lat, central_lon, length=20, unit="km"):
     ax.text(sbx, sby, '%s %s' % (length, unit),
             transform=merc,
             horizontalalignment='center',
-            verticalalignment='bottom')
+            verticalalignment='bottom', zorder=10)
 
 
 def draw_legend(ax3, sentinel):
@@ -62,32 +62,32 @@ def draw_legend(ax3, sentinel):
     ax3.set_xlim(0, 1)
     ax3.set_ylim(0, 1)
     if sentinel == 2:
-        flood_sq = patches.Rectangle((0, .8), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#33DDFF', alpha=1)
-        gsw_sq = patches.Rectangle((0., .6), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#222E50', alpha=1)
-        cldsh_sq = patches.Rectangle((0., .4), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#439A86', alpha=1)
-        cld_sq = patches.Rectangle((0., .2), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#E9D985', alpha=1)
-        nodata_sq = patches.Rectangle((0., .0), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#BCB6B3', alpha=1)
-
+        flood_sq = patches.Rectangle((0, .8), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#33DDFF', alpha=1)
+        gsw_sq = patches.Rectangle((0., .6), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#222E50', alpha=1)
+        cldsh_sq = patches.Rectangle((0., .4), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#439A86', alpha=1)
+        cld_sq = patches.Rectangle((0., .2), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#E9D985', alpha=1)
+        nodata_sq = patches.Rectangle((0., .0), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#BCB6B3', alpha=1)
         ax3.add_patch(flood_sq)
         ax3.add_patch(gsw_sq)
         ax3.add_patch(cldsh_sq)
         ax3.add_patch(cld_sq)
         ax3.add_patch(nodata_sq)
-
-        ax3.text(0.35, 0.8, "Estimated flooded area", fontsize=9)
-        ax3.text(0.35, 0.6, "Permanent water (occurrence >50%)", fontsize=9)
-        ax3.text(0.35, 0.4, "Cloud Shadows", fontsize=9)
-        ax3.text(0.35, 0.2, "Clouds", fontsize=9)
-        ax3.text(0.35, 0.0, "No data", fontsize=9)
-        ax3.set_xticks([])
+        ax3.text(0.15, 0.8, "Estimated flooded area", fontsize=9)
+        ax3.text(0.15, 0.6, "Permanent water (occurrence >50%)", fontsize=9)
+        ax3.text(0.15, 0.4, "Cloud Shadows", fontsize=9)
+        ax3.text(0.15, 0.2, "Clouds", fontsize=9)
+        ax3.text(0.15, 0.0, "No data", fontsize=9)
     else:
-        flood_sq = patches.Rectangle((0, .5), .3, 0.4, linewidth=1, edgecolor='black', facecolor='#33DDFF', alpha=1)
-        gsw_sq = patches.Rectangle((0., 0), .3, 0.4, linewidth=1, edgecolor='black', facecolor='#222E50', alpha=1)
+        flood_sq = patches.Rectangle((0, .6), .1, 0.2, linewidth=0, edgecolor='black', facecolor='#33DDFF', alpha=1)
+        gsw_sq = patches.Rectangle((0., .3), .1, 0.2, linewidth=0, edgecolor='black', facecolor='#222E50', alpha=1)
+        nodata_sq = patches.Rectangle((0., .0), .1, 0.2, linewidth=0, edgecolor='black', facecolor='#BCB6B3', alpha=1)
         ax3.add_patch(flood_sq)
         ax3.add_patch(gsw_sq)
-        ax3.text(0.35, 0.7, "Estimated flooded areas", fontsize=10)
-        ax3.text(0.35, 0.2, "Permanent water\n(occurrence >60%)", fontsize=10, va='center')
-        ax3.set_xticks([])
+        ax3.add_patch(nodata_sq)
+        ax3.text(0.15, 0.65, "Estimated flooded areas", fontsize=9)
+        ax3.text(0.15, 0.4, "Permanent water (occurrence >50%)", fontsize=9, va='center')
+        ax3.text(0.15, 0.05, "No data", fontsize=9)
+    ax3.set_xticks([])
     ax3.set_yticks([])
     ax3.axis('off')
 
@@ -113,7 +113,7 @@ def draw_data_source(ax4, **kwargs):
     tile = kwargs.get("tile", "Unknown")
     table_vals = [['Map Projection', str(proj)],
                   ['Data source', str(source)],
-                  ['Acquisition date', str(date)],
+                  ['Acq. date (UTC)', str(date)],
                   ['Relative Orbit', str(orbit)],
                   ['Tile ID', str(tile)]]
 
@@ -190,21 +190,21 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     fig = plt.figure(figsize=(11.69, 8.27))  # A4 in inches
 
     heights = [1, .25, .45, .25]
-    widths = [1, .5, 1]
+    widths = [1, 1, 1]
     spec = gridspec.GridSpec(ncols=3, nrows=4, wspace=0.025, hspace=0.2, height_ratios=heights, width_ratios=widths)
     ax1 = fig.add_subplot(spec[:-1, :-1], projection=ccrs.epsg(projcs), anchor="NW")  # Main map
     ax2 = fig.add_subplot(spec[0, -1], projection=ccrs.PlateCarree(), anchor="NW")  # World localisation
     ax3 = fig.add_subplot(spec[1, -1], anchor="NW")  # Legend
     ax4 = fig.add_subplot(spec[2, -1], anchor="NW")  # Data description
-    ax5 = fig.add_subplot(spec[-1, :2], anchor="NW")  # Disclaimer
-    ax6 = fig.add_subplot(spec[-1, -1], anchor="SE")  # Logos
+    ax5 = fig.add_subplot(spec[-1, :-1], anchor="NW")  # Disclaimer
+    ax6 = fig.add_subplot(spec[-1, 1:], anchor="SE")  # Logos
     # Cartopy 0.18 bug - No interpolation option available: https://github.com/SciTools/cartopy/issues/1563
     ax1.set_extent(extent, crs=ccrs.epsg(projcs))
 
     # Main Background image
-    bg_map = cimgt.GoogleTiles(
-        style="street")
-    ax1.add_image(bg_map, 10)
+    # bg_map = cimgt.GoogleTiles(
+    #     style="street")
+    #   ax1.add_image(bg_map, 10)
 
     gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                        linewidth=.3, color='gray', alpha=0.8)
@@ -267,8 +267,8 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     ax2.set_extent([lon_mean-15, lon_mean+15, lat_mean-10, lat_mean+10])  # lon1 lon2 latmin1 lat2
     ax2.set_xticks([])
     ax2.set_yticks([])
-    qkl_map = cimgt.OSM()
-    ax2.add_image(qkl_map, 8)
+    #qkl_map = cimgt.OSM()
+    #ax2.add_image(qkl_map, 8)
 
     pts_aoi = list()
     y, x = transform_point((extent_ax1[0], extent_ax1[2]), old_epsg=int(epsg), new_epsg=4326)
@@ -291,19 +291,24 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     draw_legend(ax3, sentinel=sentinel)
 
     # AX4 - Data information
-    draw_data_source(ax4, projection="EPSG:%s" % ds_in.epsg, satellite="Sentinel %s" % sentinel, date=date,
+    draw_data_source(ax4, projection="EPSG:%s" % ds_in.epsg, satellite="Sentinel-%s" % sentinel, date=date,
                      orbit=orbit, tile=tile)
 
     # AX5 - Disclaimer
     draw_disclaimer(ax5)
 
     # AX6 - Logos
-    ax6.set_xticks([])
-    ax6.set_yticks([])
-    im = Image.open(os.path.join(sys.path[0], 'CNES-CLS_logo.png'))
+    ax6.axis("off")
+    im = Image.open(os.path.join(sys.path[0], 'flooddam.png'))
     ax6.imshow(im, aspect='equal')
 
+    plt.gca().set_axis_off()
+    plt.subplots_adjust(top=.99, bottom=0, right=.99, left=.06,
+                        hspace=0, wspace=0)
+    plt.margins(0, 0)
+    plt.gca().xaxis.set_major_locator(plt.NullLocator())
+    plt.gca().yaxis.set_major_locator(plt.NullLocator())
     fig.canvas.draw()
-    plt.savefig(outfile, dpi=600)
+    plt.savefig(outfile, dpi=300)
 
     return plt
