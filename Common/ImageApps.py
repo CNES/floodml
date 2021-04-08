@@ -30,10 +30,6 @@ def get_ndsi(red, swir, vrange=(-1, 1), dtype=np.float32):
     :rtype: :class:`Common.GDalDatasetWrapper.GDalDatasetWrapper`
     """
 
-    print(swir.extent)
-    print(red.extent)
-    print(swir.epsg)
-    print(red.epsg)
     if swir.extent() != red.extent() or swir.epsg != red.epsg:
         raise ValueError("Cannot calculate NDSI on two different extents.")
 

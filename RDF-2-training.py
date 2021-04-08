@@ -51,7 +51,6 @@ def combine_rfs(rf_a, rf_b):
 def main_training(args):
 
     npy_dir = args.NPY_dir
-    db_mono_out = args.DB_mono_dir
     db_output = args.db_output
     sat = args.sentinel
     emsr_numbers = list(set(args.EMSR_numbers))  # Only get unique EMSR numbers - Do not train twice on the same
@@ -117,7 +116,7 @@ def main_training(args):
     yrdn = np.zeros((train_concat.shape[0], 1), dtype=np.float32)
 
     # Concat ########################################
-    xb = np.vstack((gt_concat, train_concat))
+    xb = np.array(np.vstack((gt_concat, train_concat)), dtype=np.float32)
     yb = np.vstack((yvt, yrdn))
 
     # Classif ######################################
@@ -155,7 +154,6 @@ if __name__ == "__main__":
 
     parser.add_argument('-i', '--NPY_dir', help='Input folder (NPY folder)', type=str, required=True)
     parser.add_argument('-n', '--EMSR_numbers', help='EMSR cases name', nargs='+', type=int, required=True)
-    parser.add_argument('-ot', '--DB_mono_dir', help='Mono EMSR database folder', type=str, required=True)
     parser.add_argument('--sentinel', help='S1 or S2', type=int, required=True, choices=[1, 2])
     parser.add_argument('-o', '--db_output', help='Global DB output folder ', type=str, required=True)
     parser.add_argument('-si', '--suffix_in', help='Input suffix tag ', type=str, required=False)

@@ -35,7 +35,7 @@ def draw_scale_bar(ax, central_lat, central_lon, length=20, unit="km"):
     :param unit: Unit as string
     :return:
     """
-    merc = ccrs.TransverseMercator(central_lon, central_lat)
+    merc = ccrs.TransverseMercator(central_lon, central_lat, approx=True)
     x0, x1, y0, y1 = ax.get_extent(merc)
     sbx = x0 + (x1 - x0) * .1  # 10% from the left
     sby = y0 + (y1 - y0) * .05  # 5% from the bottom
@@ -43,30 +43,51 @@ def draw_scale_bar(ax, central_lat, central_lon, length=20, unit="km"):
     ax.plot(bar_xs, [sby, sby],
             transform=merc,
             color='k',
-            linewidth=2.5)
+            linewidth=2.5, zorder=10)
     ax.text(sbx, sby, '%s %s' % (length, unit),
             transform=merc,
             horizontalalignment='center',
             verticalalignment='bottom')
 
 
-def draw_legend(ax3):
+def draw_legend(ax3, sentinel):
     """
     Draw legend in a seperate subplot
 
     :param ax3: Ax-Handle
+    :param sentinel: 1 or 2 (S1 or S2)
     :return:
     """
     ax3.set_title("Legend", loc="left")
     ax3.set_xlim(0, 1)
     ax3.set_ylim(0, 1)
-    red_sq = patches.Rectangle((0, .5), 0.3, 0.4, linewidth=1, edgecolor='black', facecolor='#CC0000', alpha=1)
-    blue_sq = patches.Rectangle((0., 0), .3, 0.4, linewidth=1, edgecolor='black', facecolor='#0000B8', alpha=1)
-    ax3.add_patch(red_sq)
-    ax3.add_patch(blue_sq)
-    ax3.text(0.35, 0.7, "Estimated flooded areas", fontsize=10)
-    ax3.text(0.35, 0.2, "Permanent water\n(occurrence >60%)", fontsize=10, va='center')
-    ax3.set_xticks([])
+    if sentinel == 2:
+        flood_sq = patches.Rectangle((0, .8), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#33DDFF', alpha=1)
+        gsw_sq = patches.Rectangle((0., .6), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#222E50', alpha=1)
+        cldsh_sq = patches.Rectangle((0., .4), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#439A86', alpha=1)
+        cld_sq = patches.Rectangle((0., .2), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#E9D985', alpha=1)
+        nodata_sq = patches.Rectangle((0., .0), .3, 0.1, linewidth=0, edgecolor='black', facecolor='#BCB6B3', alpha=1)
+
+        ax3.add_patch(flood_sq)
+        ax3.add_patch(gsw_sq)
+        ax3.add_patch(cldsh_sq)
+        ax3.add_patch(cld_sq)
+        ax3.add_patch(nodata_sq)
+
+        ax3.text(0.35, 0.8, "Estimated flooded area", fontsize=9)
+        ax3.text(0.35, 0.6, "Permanent water (occurrence >50%)", fontsize=9)
+        ax3.text(0.35, 0.4, "Cloud Shadows", fontsize=9)
+        ax3.text(0.35, 0.2, "Clouds", fontsize=9)
+        ax3.text(0.35, 0.0, "No data", fontsize=9)
+        ax3.set_xticks([])
+    else:
+        flood_sq = patches.Rectangle((0, .5), .3, 0.4, linewidth=1, edgecolor='black', facecolor='#33DDFF', alpha=1)
+        gsw_sq = patches.Rectangle((0., 0), .3, 0.4, linewidth=1, edgecolor='black', facecolor='#222E50', alpha=1)
+        ax3.add_patch(flood_sq)
+        ax3.add_patch(gsw_sq)
+        ax3.text(0.35, 0.7, "Estimated flooded areas", fontsize=10)
+        ax3.text(0.35, 0.2, "Permanent water\n(occurrence >60%)", fontsize=10, va='center')
+        ax3.set_xticks([])
     ax3.set_yticks([])
     ax3.axis('off')
 
@@ -85,14 +106,16 @@ def draw_data_source(ax4, **kwargs):
     ax4.axis('off')
 
     # TABLE
-
-    epsg="1234"
-    date="20200401"
-    orbit="0123"
-    table_vals = [["Map EPSG", epsg],
-                  ['Data source', 'Sentinel-1'],
-                  ['Acquisition date', str(date)[:4] + '-' + str(date)[4:6] + '-' + str(date)[6:8]],
-                  ['Relative Orbit', orbit]]
+    proj = kwargs.get("projection", "Unknown")
+    source = kwargs.get("satellite", "Unknown")
+    date = kwargs.get("date", "Unknown")
+    orbit = kwargs.get("orbit", "Unknown")
+    tile = kwargs.get("tile", "Unknown")
+    table_vals = [['Map Projection', str(proj)],
+                  ['Data source', str(source)],
+                  ['Acquisition date', str(date)],
+                  ['Relative Orbit', str(orbit)],
+                  ['Tile ID', str(tile)]]
 
     n_lines = len(table_vals)
     line_width = .2
@@ -112,12 +135,10 @@ def draw_disclaimer(ax6):
     - This map is derived automatically using the FloodDAM Rapid-Mapping tool. It is derived using a combination of
       satellite data and was developed during the SCO (Space Climate Observatory)-FloodDAM project. More info:
       https://www.spaceclimateobservatory.org/flooddam-garonne
-    - How to cite this map: FloodDAM Rapid-Mapping (© CNES-CLS-CS, 2019-2020)
+    - How to cite this map: FloodDAM Rapid-Mapping (© CNES-CLS-CS, 2019-2021)
     - Surface Water Occurrence (GSW) data:
       Jean-Francois Pekel, Andrew Cottam, Noel Gorelick, Alan S. Belward. High-resolution mapping of global 
       surface water and its long-term changes. Nature 540, 418-422 (2016). (doi:10.1038/nature20584)
-    - Basemap:
-      Sentinel-2 cloudless - https://s2maps.eu by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016 & 2017)
     """
     ax6.text(.01, 1, "Disclaimer", fontsize=10, wrap=True, ha='left', linespacing=1,
              verticalalignment='top',)
@@ -128,7 +149,7 @@ def draw_disclaimer(ax6):
     ax6.axis('off')
 
 
-def static_display(infile, tile, date, orbit, outfile, gswo_dir):
+def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     """
     Create a static display map using the binary inference mask.
     Overlays the mask over a google-maps/OSM background - Needs internet in order to request the data.
@@ -136,9 +157,10 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir):
     :param infile: Path to inferece mask (Binary)
     :param tile: Tile number e.g. 30TXM
     :param date: Date as string
-    :param orbit: Relative Orbit number with leading zeros
+    :param orbit: Relative orbit number
     :param outfile: Path where the image shall be written to
     :param gswo_dir: GSW directory containing tiled gsw data in the format TILEID.tif e.g. 30TXM.tif
+    :param sentinel: 1 or 2, indicating whether the original image comes from S1 or S2.
     :return:
     """
 
@@ -182,21 +204,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir):
     # Main Background image
     bg_map = cimgt.GoogleTiles(
         style="street")
-    ax1.add_image(bg_map, 12, interpolation="spline16")
-
-    # Flooded area display (in red), permanent water in blue
-    masked_data = np.ma.masked_where(data == 0, data)
-    masked_gsw = np.ma.masked_where(gswo_projected.array == 0, data)
-
-    cmap = matplotlib.colors.ListedColormap(["#CC0000"], name='from_list', N=None)  # Color for flooded areas
-    img = ax1.imshow(masked_data, extent=extent, transform=ccrs.epsg(projcs), origin='upper', cmap=plt.get_cmap(cmap),
-                     alpha=0.7, interpolation="nearest")
-    img.set_zorder(1)
-
-    cmap2 = matplotlib.colors.ListedColormap(["#0000b8"], name='from_list', N=None)  # Color for perma areas
-    img2 = ax1.imshow(masked_gsw, extent=extent, transform=ccrs.epsg(projcs),  origin='upper', cmap=plt.get_cmap(cmap2),
-                      alpha=1, interpolation="nearest")
-    img2.set_zorder(2)
+    ax1.add_image(bg_map, 10)
 
     gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
                        linewidth=.3, color='gray', alpha=0.8)
@@ -213,6 +221,44 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir):
     lat_center = latmin + (latmax - latmin) * .05
     draw_scale_bar(ax1, central_lat=lat_center, central_lon=lon_center)
 
+    # Flooded area display (in red), permanent water in blue
+    masked_data = np.ma.masked_where(data != 1, data)
+    masked_gsw = np.ma.masked_where(gswo_projected.array < 50, gswo_projected.array)
+    masked_gsw = np.ma.masked_where(gswo_projected.array == 255, masked_gsw)
+    masked_gsw = np.ma.masked_where(data > 1, masked_gsw)
+
+    cmap2 = matplotlib.colors.ListedColormap(["#222E50"], name='from_list', N=None)  # Color for perma areas
+    img2 = ax1.imshow(masked_gsw, extent=extent, transform=ccrs.epsg(projcs),  origin='upper', cmap=plt.get_cmap(cmap2),
+                      alpha=.7, interpolation="nearest")
+    img2.set_zorder(4)
+
+    cmap = matplotlib.colors.ListedColormap(["#33DDFF"], name='from_list', N=None)  # Color for flooded areas
+    img = ax1.imshow(masked_data, extent=extent, transform=ccrs.epsg(projcs), origin='upper', cmap=plt.get_cmap(cmap),
+                     alpha=1, interpolation="nearest")
+    img.set_zorder(3)
+
+    if sentinel == 2:
+        masked_cld_shadow = np.ma.masked_where(data != 2, data)
+        cmap3 = matplotlib.colors.ListedColormap(["#439A86"], name='from_list', N=None)  # Color for perma areas
+        img3 = ax1.imshow(masked_cld_shadow, extent=extent, transform=ccrs.epsg(projcs), origin='upper',
+                          cmap=plt.get_cmap(cmap3),
+                          alpha=.7, interpolation="nearest")
+        img3.set_zorder(3)
+
+        masked_cld = np.ma.masked_where(data != 3, data)
+        cmap4 = matplotlib.colors.ListedColormap(["#E9D985"], name='from_list', N=None)  # Color for perma areas
+        img4 = ax1.imshow(masked_cld, extent=extent, transform=ccrs.epsg(projcs), origin='upper',
+                          cmap=plt.get_cmap(cmap4),
+                          alpha=.7, interpolation="nearest")
+        img4.set_zorder(2)
+
+    masked_nodata = np.ma.masked_where(data != 255, data)
+    cmap5 = matplotlib.colors.ListedColormap(["#BCB6B3"], name='from_list', N=None)  # Color for perma areas
+    img5 = ax1.imshow(masked_nodata, extent=extent, transform=ccrs.epsg(projcs), origin='upper',
+                      cmap=plt.get_cmap(cmap5),
+                      alpha=.9, interpolation="nearest")
+    img5.set_zorder(5)
+
     # Location map
     lat_mean, lon_mean = transform_point((float(np.mean(extent[0:2])), float(np.mean(extent[2:4]))),
                                          old_epsg=int(epsg), new_epsg=4326)
@@ -222,7 +268,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir):
     ax2.set_xticks([])
     ax2.set_yticks([])
     qkl_map = cimgt.OSM()
-    ax2.add_image(qkl_map, 8, interpolation="spline16")
+    ax2.add_image(qkl_map, 8)
 
     pts_aoi = list()
     y, x = transform_point((extent_ax1[0], extent_ax1[2]), old_epsg=int(epsg), new_epsg=4326)
@@ -242,10 +288,11 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir):
         ax2.plot(xs, ys, lw=1, color='red')
 
     # AX3 - Legend
-    draw_legend(ax3)
+    draw_legend(ax3, sentinel=sentinel)
 
     # AX4 - Data information
-    draw_data_source(ax4)
+    draw_data_source(ax4, projection="EPSG:%s" % ds_in.epsg, satellite="Sentinel %s" % sentinel, date=date,
+                     orbit=orbit, tile=tile)
 
     # AX5 - Disclaimer
     draw_disclaimer(ax5)
@@ -257,6 +304,6 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir):
     ax6.imshow(im, aspect='equal')
 
     fig.canvas.draw()
-    plt.savefig(outfile, dpi=1000)
+    plt.savefig(outfile, dpi=600)
 
     return plt

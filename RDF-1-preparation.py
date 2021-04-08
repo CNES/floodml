@@ -72,7 +72,7 @@ def main_preparation(args):
                 file_list = glob.glob(os.path.join(emsr_path, tile) + "/s*.tif",
                                       recursive=True)
             elif sat == 2:
-                file_list = glob.glob(os.path.join(emsr_path, tile) + "/S2*/GRANULE/*/IMG_DATA/*/*B01*.jp2",
+                file_list = glob.glob(os.path.join(emsr_path, tile) + "/S2*/GRANULE/*/IMG_DATA/*/*B05*20m.jp2",
                                       recursive=True)
             else:
                 raise ValueError("Unknown Sentinel Satellite. Has to be 1 or 2.")
@@ -89,12 +89,12 @@ def main_preparation(args):
                                s_srs="EPSG:4326",
                                t_srs="EPSG:%s" % epsg,
                                te=ds_in.extent(dtype=str),
-                               r="near", ot="Int16")
+                               r="cubic", ot="Int16")
             dim = ds_out.array.shape[:2]
             gswo = ds_out.array
             idx_reject_gswo = np.where(gswo == 255)  # index to reject
             mask_gswo = np.zeros(shape=(dim[1], dim[0]))
-            mask_gswo[np.where((gswo > 90) & (gswo != 255))] = 1  # Threshold put to 90%
+            mask_gswo[np.where((gswo > 60) & (gswo != 255))] = 1  # Threshold put to 90%
 
             imask_rdn = np.ravel(np.flatnonzero(gswo == 0))
 

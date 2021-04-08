@@ -11,7 +11,6 @@ Project:        FloodML, CNES
 import numpy as np
 import os
 import gc
-import glob
 from scipy.ndimage.filters import uniform_filter
 from scipy.ndimage.measurements import variance
 from functools import reduce
@@ -19,6 +18,8 @@ from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageTools import gdal_warp, gdal_buildvrt
 from Common import FileSystem
 from Chain import Product
+
+s2_bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "SCL"]
 
 
 def s1_prep_stack_builder(s1_vv, slp_norm, idx_reject_gswo, idx_reject_slp, mask_gswo, imask_roi, imask_rdn,
@@ -121,18 +122,33 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
 
     for j, s2 in enumerate(s2files):
         prod = Product.MajaProduct.factory(s2)
-        print("\t ("+str(j+1)+"/"+str(len(s2files))+")")
         print(prod)
-        print(glob.glob(os.path.join(s2, "index", "*_MNDWI.tif")))
-
         # MNDWI and NDVI file loading:
-        ds_mndwi = gdal_warp(prod.get_synthetic_band("mndwi"), tr="20 20")
-        ds_ndvi = gdal_warp(prod.get_synthetic_band("ndvi"), tr="20 20")
+        ds_mndwi = gdal_warp(prod.get_synthetic_band("mndwi"), tr="20 20", r="cubic")
+        ds_ndvi = gdal_warp(prod.get_synthetic_band("ndvi"), tr="20 20", r="cubic")
         mndwi = ds_mndwi.array
         ndvi = ds_ndvi.array
 
+        bands = [prod.find_file(pattern=r"\w+%s\w+.jp2$" % b, depth=5)[0] for b in s2_bands]
+        ds_bands = [gdal_warp(f, tr="20 20", r="cubic").array for f in bands]
+
+        scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
+        scl_img = GDalDatasetWrapper.from_file(scl_path).array
+        # Get cloud, cloud shadow and snow layers
+        cld_shadow = np.where(scl_img == 3)
+        cld = np.where((scl_img >= 8) & (scl_img <= 10))
+
+        # Apply nodata for all pixels classified as no-data/cloud/cloud-shadow:
         mndwi[idx_reject_gswo] = -10000
         ndvi[idx_reject_gswo] = -10000
+        mndwi[cld_shadow] = -10000
+        mndwi[cld] = -10000
+        ndvi[cld_shadow] = -10000
+        ndvi[cld] = -10000
+        for b in ds_bands:
+            b[idx_reject_gswo] = -10000
+            b[cld] = -10000
+            b[cld_shadow] = -10000
 
         nonzero = np.flatnonzero(ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)] != -10000) * 1
         if (len(np.where(ndvi > -10000)[0]) != 0) & (len(nonzero) != 0):
@@ -141,8 +157,10 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
 
             # Final
             if not vstack_s2.any():
-                vstack_s2 = np.vstack((ndvi[np.unravel_index(imask_roi, mask_gswo.shape)],
-                                       mndwi[np.unravel_index(imask_roi, mask_gswo.shape)]))
+                vstack_add = np.vstack((ndvi[np.unravel_index(imask_roi, mask_gswo.shape)],
+                                        mndwi[np.unravel_index(imask_roi, mask_gswo.shape)]))
+                vstack_bands = np.array([b[np.unravel_index(imask_roi, mask_gswo.shape)] for b in ds_bands])
+                vstack_s2 = np.concatenate((vstack_add, vstack_bands), axis=0)
             else:
                 vstack_s2_tmp = np.vstack((ndvi[np.unravel_index(imask_roi, mask_gswo.shape)],
                                            mndwi[np.unravel_index(imask_roi, mask_gswo.shape)]))
@@ -157,8 +175,10 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
                 print("\t\t\tBeware: probably more water than ground in the image")
 
             if not rdn_stack.any():
-                rdn_stack = np.vstack((ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]],
-                                       mndwi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]]))
+                rdn_add = np.vstack((ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]],
+                                     mndwi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]]))
+                rdn_bands = np.array([b[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]] for b in ds_bands])
+                rdn_stack = np.concatenate((rdn_add, rdn_bands), axis=0)
             else:
                 rdn_stack_tmp1 = np.vstack((ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]],
                                             mndwi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]]))
@@ -241,28 +261,33 @@ def s1_inf_stack_builder(filename, slp_norm):
     return vstack
 
 
-def s2_inf_stack_builder(product):
+def s2_inf_stack_builder(product, tmpdir):
 
     """
     Stack builder for Sentinel-2 files for inference purposes
 
     :param product:  Sentinel-2 L2A product
+    :param tmpdir: Temporary working directory to write synthetic bands to.
     :return: Stack array for inference
     """
 
     # MNDWI and NDVI file loading:
-    ds_mndwi = gdal_warp(product.get_synthetic_band("mndwi"), tr="20 20")
-    ds_ndvi = gdal_warp(product.get_synthetic_band("ndvi"), tr="20 20")
+    ds_mndwi = gdal_warp(product.get_synthetic_band("mndwi", wdir=tmpdir), tr="20 20", r="cubic")
+    ds_ndvi = gdal_warp(product.get_synthetic_band("ndvi", wdir=tmpdir), tr="20 20", r="cubic")
     mndwi = ds_mndwi.array
     ndvi = ds_ndvi.array
 
     mndwi = mndwi / 5000
     ndvi = ndvi / 5000
 
+    bands = [product.find_file(pattern=r"\w+%s\w+.jp2$" % b, depth=5)[0] for b in s2_bands]
+    ds_bands = [gdal_warp(f, tr="20 20", r="cubic").array for f in bands]
+    # Apply cloud/cloud-shadow/snow layer:
+    ds_bands_flat = np.moveaxis(np.array([np.reshape(b, (-1, 1))[..., 0] for b in ds_bands]), 0, -1)
     mndwi[mndwi == -2] = np.nan
     ndvi[ndvi == -2] = np.nan
 
-    vstack_s2 = np.hstack((np.reshape(mndwi, (-1, 1)), np.reshape(ndvi, (-1, 1))))
-
+    vstack_add = np.hstack((np.reshape(mndwi, (-1, 1)), np.reshape(ndvi, (-1, 1))))
+    vstack_s2 = np.concatenate((vstack_add, ds_bands_flat), axis=-1)
     gc.collect()
     return vstack_s2

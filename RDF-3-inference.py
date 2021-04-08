@@ -12,9 +12,6 @@ import os
 import joblib
 import numpy as np
 import argparse
-
-from numpy import ulonglong
-
 from random_forest.common import RDF_tools
 import tempfile
 import progressbar
@@ -36,12 +33,11 @@ def main_inference(args):
     sat = args.sentinel
     db_path = args.db_path
     gsw_dir = args.gsw
-    products = Dataset.get_available_products(root=input_folder, platforms=["s%s" % sat])
+    products = list(sorted(Dataset.get_available_products(root=input_folder, platforms=["s%s" % sat])))
     tmp_in = args.tmp_dir
     FileSystem.create_directory(tmp_in)  # Create if not existing
 
     print("Number of products found:", len(products))
-    [print(f) for f in products]
 
     # Initialise extent file
     FileSystem.create_directory(dir_output)
@@ -49,9 +45,14 @@ def main_inference(args):
     # Select DEM based on provided paths
     dem_choice = "copernicus" if copdem_dir else "merit"
 
-    extent_out = os.path.join(dir_output, "extents.csv")
+    extent_out = os.path.join(dir_output, "extents_%s_%s_0.csv" % (products[0].date.strftime("%Y%m%d"),
+                                                                   products[-1].date.strftime("%Y%m%d")))
+    for i in range(100):
+        extent_mod = extent_out.replace("_0.csv", "_%03d.csv" % i)
+        if not os.path.exists(extent_mod):
+            break
     # Write extent file header
-    with open(extent_out, 'a') as the_file:
+    with open(extent_mod, 'a') as the_file:
         the_file.write('Flood extent in 10x10m^2\n')
 
     # Main loop
@@ -65,7 +66,7 @@ def main_inference(args):
 
         if sat == 1:  # Sentinel-1 case
             filename = prod._vv
-            date = prod.date.strftime("%Y-%m-%d")
+            date = prod.date.strftime("%Y%m%dT%H%M%S")
             orbit = prod.base.split("_")[4]
             ds_in = GDalDatasetWrapper.from_file(filename)
             epsg = str(ds_in.epsg)
@@ -85,9 +86,9 @@ def main_inference(args):
         elif sat == 2:  # Sentinel-2 case
             filename = prod.find_file(pattern=r"*B0?5(_20m)?.jp2$", depth=5)[0]
             ds_in = GDalDatasetWrapper.from_file(filename)
-            date = prod.date.strftime("%Y-%m-%d")
-            orbit = prod.rel_orbit
-            v_stack = RDF_tools.s2_inf_stack_builder(prod)
+            date = prod.date.strftime("%Y%m%dT%H%M%S")
+            orbit = prod.rel_orbit.replace("R", "")
+            v_stack = RDF_tools.s2_inf_stack_builder(prod, tmp_dir)
         else:
             raise ValueError("Unknown Sentinel Satellite. Has to be 1 or 2.")
 
@@ -110,40 +111,34 @@ def main_inference(args):
         dim = ds_filename.array.shape[:2]
 
         vec_out = np.concatenate(predictions).reshape(dim[1], dim[0])
-        exout = np.array(vec_out, dtype=np.bool)
+        exout = np.array(vec_out, dtype=np.uint8)
 
         # Apply nodata
-        exout[ds_in.array == 0] = 1
+        exout[ds_in.array == 0] = 255
 
         if sat == 2:
-            # S2 currently needs to be inverted
-            # TODO Fix this
-            exout = 1 - exout
-            gml_path = prod.find_file(pattern=r"MSK_CLOUDS\w+.gml$", depth=5)[0]
-            dst = ImageTools.gdal_rasterize(gml_path,
-                                            tr="%s %s" % (ds_in.resolution[0], ds_in.resolution[1]),
-                                            burn=1, a_nodata=0, a_srs="EPSG:%s" % ds_in.epsg,
-                                            te=ds_in.extent(dtype=str))
-            # Add cloud layer
-            exout[dst > 0] = 2
+            scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
+            scl_img = GDalDatasetWrapper.from_file(scl_path).array
+            # Add cloud, cloud shadow and snow layers
+            cld_shadow = scl_img == 3
+            cld = (scl_img >= 8) & (scl_img <= 10)
+            snw = scl_img == 11
+            exout[cld_shadow] = 2
+            exout[cld] = 3
+            exout[snw] = 4
 
         # Export
         FileSystem.create_directory(dir_output)
-
-        if sat == 1:
-            nexout = os.path.join(dir_output,
-                                  'Inference_RDF_%s_T%s_%s_%s.tif' % (sat, tile, str(date), orbit))
-        else:
-            nexout = os.path.join(dir_output,
-                                  'Inference_RDF_%s_T%s_%s.tif' % (sat, tile, str(date)))
+        nexout = os.path.join(dir_output,
+                              'Inference_RDF_S%s_%s_T%s_%s.tif' % (sat, str(date), tile, orbit))
 
         ds_out = GDalDatasetWrapper(array=exout,
                                     projection=ds_filename.projection,
                                     geotransform=ds_filename.geotransform)
-        ds_out.write(nexout)
+        ds_out.write(nexout, options=["COMPRESS=LZW"], nodata=255)
 
         static_display_out = nexout.replace("Inference", "RapidMapping").replace(".tif", ".png")
-        dtool.static_display(nexout, tile, date, orbit, static_display_out, gswo_dir=gsw_dir)
+        dtool.static_display(nexout, tile, date, orbit, static_display_out, gswo_dir=gsw_dir, sentinel=sat)
 
         ds_extent = GDalDatasetWrapper.from_file(nexout)
         FileSystem.remove_directory(tmp_dir)
@@ -152,12 +147,14 @@ def main_inference(args):
         with open(nexout.replace(".tif", ".txt"), 'a') as the_file:
             the_file.write('%s\n' % os.path.abspath(nexout))
             the_file.write('%s\n' % os.path.abspath(static_display_out))
-            the_file.write('%s\n' % os.path.abspath(extent_out))
+            the_file.write('%s\n' % os.path.abspath(extent_mod))
 
         # Write extent file
-        with open(extent_out, 'a') as the_file:
-            the_file.write('%s,%s\n' % (date, np.count_nonzero(ds_extent.array)))
+        with open(extent_mod, 'a') as the_file:
+            the_file.write('%s,%s,%s\n' % (prod.tile, date, np.count_nonzero(ds_extent.array)))
 
+    FileSystem.remove_directory(tmp_in)
+    print("FloodML finished ;)")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data preparation scheduler')
