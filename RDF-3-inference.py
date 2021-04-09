@@ -68,6 +68,7 @@ def main_inference(args):
             orbit = prod.base.split("_")[4]
             ds_in = GDalDatasetWrapper.from_file(filename)
             epsg = str(ds_in.epsg)
+            date = prod.date.strftime("%Y%m%dT%H%M%S")
             extent_str = ds_in.extent(dtype=str)
             # MERIT topography file for corresponding tile (S1 case)
             if dem_choice == "copernicus":

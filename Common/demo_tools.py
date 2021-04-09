@@ -84,9 +84,9 @@ def draw_legend(ax3, sentinel):
         ax3.add_patch(flood_sq)
         ax3.add_patch(gsw_sq)
         ax3.add_patch(nodata_sq)
-        ax3.text(0.15, 0.65, "Estimated flooded areas", fontsize=9)
+        ax3.text(0.15, 0.7, "Estimated flooded areas", fontsize=9)
         ax3.text(0.15, 0.4, "Permanent water (occurrence >50%)", fontsize=9, va='center')
-        ax3.text(0.15, 0.05, "No data", fontsize=9)
+        ax3.text(0.15, 0.1, "No data", fontsize=9)
     ax3.set_xticks([])
     ax3.set_yticks([])
     ax3.axis('off')
@@ -184,7 +184,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     #  Permanent water mask
     gswo_name = os.path.join(gswo_dir, "%s.tif" % tile)
     gswo_projected = gdal_warp(gswo_name, t_srs="EPSG:%s" % epsg, te=extent_str, tr="%s %s" % (gt[1], gt[-1]),
-                               r="nearest")
+                               r="near")
 
     #  Display the data
     fig = plt.figure(figsize=(11.69, 8.27))  # A4 in inches

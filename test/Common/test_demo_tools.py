@@ -76,20 +76,21 @@ class TestDemoTools(unittest.TestCase):
                                                orbit=self.orbit, date=self.date, gswo_dir=self.gsw_dir, sentinel=1)
         self.assertIsNotNone(plt_return)
 
-    def test_draw_legend(self):
+    def test_draw_legend_s1(self):
         ax = plt.gca()
         demo_tools.draw_legend(ax, sentinel=1)
-        plt.show()
+
+    def test_draw_legend_s2(self):
+        ax = plt.gca()
+        demo_tools.draw_legend(ax, sentinel=2)
 
     def test_draw_disclaimer(self):
         ax = plt.gca()
         demo_tools.draw_disclaimer(ax)
-        plt.show()
 
     def test_draw_data_source(self):
         ax = plt.gca()
         demo_tools.draw_data_source(ax)
-        plt.show()
 
 
 if __name__ == '__main__':
