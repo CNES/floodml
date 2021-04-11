@@ -149,7 +149,7 @@ def draw_disclaimer(ax6):
     ax6.axis('off')
 
 
-def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
+def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel, background=None):
     """
     Create a static display map using the binary inference mask.
     Overlays the mask over a google-maps/OSM background - Needs internet in order to request the data.
@@ -161,6 +161,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     :param outfile: Path where the image shall be written to
     :param gswo_dir: GSW directory containing tiled gsw data in the format TILEID.tif e.g. 30TXM.tif
     :param sentinel: 1 or 2, indicating whether the original image comes from S1 or S2.
+    :param background: Optional filepath to image to override the WMTS background.
     :return:
     """
 
@@ -201,20 +202,27 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
     # Cartopy 0.18 bug - No interpolation option available: https://github.com/SciTools/cartopy/issues/1563
     ax1.set_extent(extent, crs=ccrs.epsg(projcs))
 
-    # Main Background image
-    bg_map = cimgt.GoogleTiles(
-        style="street")
-    ax1.add_image(bg_map, 10)
+    # Main Background image and gridlines
+    if not background:
+        bg_map = cimgt.GoogleTiles(
+            style="street")
+        ax1.add_image(bg_map, 10)
 
-    gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
-                       linewidth=.3, color='gray', alpha=0.8)
+        gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                           linewidth=.3, color='gray', alpha=0.8)
+    else:
+        bg = GDalDatasetWrapper.from_file(background)
+        visu = np.moveaxis(bg.array, 0, -1)
+        ax1.imshow(visu, extent=extent, transform=ccrs.epsg(projcs),  origin='upper', interpolation="bicubic")
+        gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
+                           linewidth=.3, color='black', alpha=1)
+
     gl.xlabels_top = False
     gl.ylabels_right = False
     gl.xformatter = LONGITUDE_FORMATTER
     gl.yformatter = LATITUDE_FORMATTER
     gl.xlabel_style = {'color': 'gray'}
     gl.ylabel_style = {'color': 'gray'}
-
     # Scale Bar
     lonmin, lonmax, latmin, latmax = ax1.get_extent(ccrs.PlateCarree())
     lon_center = lonmin + (lonmax - lonmin) * .1
@@ -264,10 +272,10 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel):
                                          old_epsg=int(epsg), new_epsg=4326)
 
     # This should be ratio 3:2:
-    ax2.set_extent([lon_mean-15, lon_mean+15, lat_mean-10, lat_mean+10])  # lon1 lon2 latmin1 lat2
+    ax2.set_extent([lon_mean-15, lon_mean+15, lat_mean-15, lat_mean+15])  # lon1 lon2 latmin1 lat2
     ax2.set_xticks([])
     ax2.set_yticks([])
-    qkl_map = cimgt.OSM()
+    qkl_map = cimgt.Stamen('terrain-background')
     ax2.add_image(qkl_map, 8)
 
     pts_aoi = list()

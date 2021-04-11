@@ -38,6 +38,9 @@ def main_inference(args):
 
     print("Number of products found:", len(products))
 
+    if not products:
+        print("No products found. Exiting...")
+        return
     # Initialise extent file
     FileSystem.create_directory(dir_output)
 
@@ -82,12 +85,14 @@ def main_inference(args):
             slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names)
             slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
             v_stack = RDF_tools.s1_inf_stack_builder(filename, slp_norm)
+            background = None
         elif sat == 2:  # Sentinel-2 case
             filename = prod.find_file(pattern=r"*B0?5(_20m)?.jp2$", depth=5)[0]
             ds_in = GDalDatasetWrapper.from_file(filename)
             date = prod.date.strftime("%Y%m%dT%H%M%S")
             orbit = prod.rel_orbit.replace("R", "")
             v_stack = RDF_tools.s2_inf_stack_builder(prod, tmp_dir)
+            background = prod.find_file(pattern=r"*TCI(_20m)?.jp2$", depth=5)[0]
         else:
             raise ValueError("Unknown Sentinel Satellite. Has to be 1 or 2.")
 
@@ -138,7 +143,7 @@ def main_inference(args):
 
         static_display_out = nexout.replace("Inference", "RapidMapping").replace(".tif", ".png")
         dtool.static_display(nexout, tile, prod.date.strftime("%Y-%m-%d %H:%M:%S"), orbit, static_display_out,
-                             gswo_dir=gsw_dir, sentinel=sat)
+                             gswo_dir=gsw_dir, sentinel=sat, background=background)
 
         ds_extent = GDalDatasetWrapper.from_file(nexout)
         FileSystem.remove_directory(tmp_dir)
@@ -155,6 +160,7 @@ def main_inference(args):
 
     FileSystem.remove_directory(tmp_in)
     print("FloodML finished ;)")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data preparation scheduler')
