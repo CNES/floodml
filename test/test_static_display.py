@@ -10,10 +10,14 @@ Project:        FloodML, CNES
 
 import argparse
 import os
-import Common.demo_tools as dtool
+import sys
+
+# Import relative modules; Override 'Common' folder in test-directory
+sys.path.insert(0, os.path.realpath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..')))
 
 
 def main_display(args):
+    from Common import demo_tools as dtool
     bname = os.path.basename(args.input)
     date, tile = bname.split("_")[3:5]
     try:
@@ -29,7 +33,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Data preparation scheduler')
 
     parser.add_argument('-i', '--input', help='Input raster', type=str, required=True)
-    parser.add_argument('-o', '--Inf_ouput', help='Output folder', type=str, required=True)
     parser.add_argument('-g', '--gsw', help='GSW dir', type=str, required=True)
     parser.add_argument('-s', '--sentinel', help='Sentinel (Should be 1 or 2)', type=int, required=True)
 

@@ -123,26 +123,26 @@ def draw_data_source(ax4, **kwargs):
                   bbox=[0., 1 - n_lines * line_width, 1, n_lines * line_width])
 
 
-def draw_disclaimer(ax6):
+def draw_disclaimer(ax6, add=""):
     """
     Draw disclaimer in separate subplot
 
     :param ax6: Ax-Handle
+    :param add: Append string to disclaimer
     :return:
     """
 
-    gsw_credit = r"""
-    - This map is derived automatically using the FloodDAM Rapid-Mapping tool. It is derived using a combination of
-      satellite data and was developed during the SCO (Space Climate Observatory)-FloodDAM project. More info:
-      https://www.spaceclimateobservatory.org/flooddam-garonne
-    - How to cite this map: FloodDAM Rapid-Mapping (© CNES-CLS-CS, 2019-2021)
-    - Surface Water Occurrence (GSW) data:
-      Jean-Francois Pekel, Andrew Cottam, Noel Gorelick, Alan S. Belward. High-resolution mapping of global 
-      surface water and its long-term changes. Nature 540, 418-422 (2016). (doi:10.1038/nature20584)
-    """
+    credit = r"""
+- This map is derived automatically using the FloodDAM Rapid-Mapping (FloodML) tool.
+  More info: https://www.spaceclimateobservatory.org/flooddam-garonne
+  
+- How to cite this map: FloodDAM Rapid-Mapping (© CNES-CLS-CS, 2019-2021)
+- Surface Water Occurrence (GSW) data: Jean-Francois Pekel, Andrew Cottam, Noel Gorelick, Alan S. Belward.
+  High-resolution mapping of global surface water and its long-term changes. Nature 540, 418-422 (2016). (doi:10.1038/nature20584)
+""" + add
     ax6.text(.01, 1, "Disclaimer", fontsize=10, wrap=True, ha='left', linespacing=1,
              verticalalignment='top',)
-    ax6.text(0, .9, gsw_credit, fontsize=6, wrap=True, ha='left', linespacing=1.1,
+    ax6.text(0, .9, credit, fontsize=6, wrap=True, ha='left', linespacing=1.1,
              verticalalignment='top')
     ax6.set_xticks([])
     ax6.set_yticks([])
@@ -204,21 +204,23 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel, backg
 
     # Main Background image and gridlines
     if not background:
-        bg_map = cimgt.GoogleTiles(
-            style="street")
-        ax1.add_image(bg_map, 10)
-
+        print("Using WMTS background.")
+        bg_map = cimgt.GoogleTiles(url="http://a.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png")
+        ax1.add_image(bg_map, 11, interpolation="spline36", regrid_shape=2000)
         gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
-                           linewidth=.3, color='gray', alpha=0.8)
+                           linewidth=.3, color='gray', alpha=0.8, zorder=9)
+        disclaimer_add =\
+            "- Fond de carte par Yohan Boniface & Humanitarian OpenStreetMap Team sous licence domaine public CC0"
     else:
         bg = GDalDatasetWrapper.from_file(background)
         visu = np.moveaxis(bg.array, 0, -1)
         ax1.imshow(visu, extent=extent, transform=ccrs.epsg(projcs),  origin='upper', interpolation="bicubic")
         gl = ax1.gridlines(crs=ccrs.PlateCarree(), draw_labels=True,
-                           linewidth=.3, color='black', alpha=1)
+                           linewidth=.3, color='black', alpha=1, zorder=9)
+        disclaimer_add = ""
 
-    gl.xlabels_top = False
-    gl.ylabels_right = False
+    gl.top_labels = False
+    gl.right_labels = False
     gl.xformatter = LONGITUDE_FORMATTER
     gl.yformatter = LATITUDE_FORMATTER
     gl.xlabel_style = {'color': 'gray'}
@@ -276,8 +278,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel, backg
     ax2.set_xticks([])
     ax2.set_yticks([])
     qkl_map = cimgt.Stamen('terrain-background')
-    ax2.add_image(qkl_map, 8)
-
+    ax2.add_image(qkl_map, 5, interpolation="spline36")
     pts_aoi = list()
     y, x = transform_point((extent_ax1[0], extent_ax1[2]), old_epsg=int(epsg), new_epsg=4326)
     pts_aoi.append([x, y])
@@ -303,7 +304,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel, backg
                      orbit=orbit, tile=tile)
 
     # AX5 - Disclaimer
-    draw_disclaimer(ax5)
+    draw_disclaimer(ax5, add=disclaimer_add)
 
     # AX6 - Logos
     ax6.axis("off")
@@ -317,6 +318,6 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel, backg
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
     fig.canvas.draw()
-    plt.savefig(outfile, dpi=300)
+    plt.savefig(outfile, dpi=600)
 
     return plt

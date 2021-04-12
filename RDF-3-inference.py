@@ -78,10 +78,9 @@ def main_inference(args):
                 ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
                 lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
                 topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
-                print(ul_latlon, lr_latlon)
             else:
                 topo_names = [os.path.join(merit_dir, tile + ".tif")]
-            print("\t\t MERIT_file: %s" % topo_names)
+            print("\tDEM file: %s" % topo_names)
             slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names)
             slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
             v_stack = RDF_tools.s1_inf_stack_builder(filename, slp_norm)
