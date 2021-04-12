@@ -21,37 +21,9 @@ from sklearn.metrics import accuracy_score
 from Common import FileSystem
 
 
-def combine_rfs_gpu(rf_a, rf_b):
-    """
-    Combined two trees (Regroup databases) using cuML trees
-    :param rf_a: Tree a
-    :param rf_b: Tree b
-    :return: Combined tree(a,b)
-    """
-    json_a = rf_a.dump_as_json()
-    json_b = rf_b.dump_as_json()
-    return rf_a
-
-
-def combine_rfs(rf_a, rf_b):
-    """
-    Combined two trees (Regroup databases)
-    Taken from https://stackoverflow.com/questions/28489667/combining-random-forest-models-in-scikit-learn
-
-    :param rf_a: Tree a
-    :param rf_b: Tree b
-    :return: Combined tree(a,b)
-    """
-
-    rf_a.estimators_ += rf_b.estimators_
-    rf_a.n_estimators = len(rf_a.estimators_)
-    return rf_a
-
-
 def main_training(args):
 
     npy_dir = args.NPY_dir
-    db_mono_out = args.DB_mono_dir
     db_output = args.db_output
     sat = args.sentinel
     emsr_numbers = list(set(args.EMSR_numbers))  # Only get unique EMSR numbers - Do not train twice on the same
@@ -82,9 +54,6 @@ def main_training(args):
         except FileNotFoundError as e:
             print(e)
             continue
-
-        print("data_vt ", np.size(data_vt, 0), np.size(data_vt, 1))
-        print("datardn ", np.size(data_rdn, 0), np.size(data_rdn, 1))
 
         # NPY duplicated rows reduction  for WATER#
         # Perform lex sort and get sorted data
@@ -123,8 +92,6 @@ def main_training(args):
     # Classif ######################################
     # Split into train and test set
     x_train, x_test, y_train, y_test = train_test_split(xb, yb, test_size=0.33)
-    print("x_train shape: ", x_train.shape)
-    print("y_train shape: ", y_train.shape)
 
     # Random Forest
     print("\n###    Random forest training    ###")
@@ -155,7 +122,6 @@ if __name__ == "__main__":
 
     parser.add_argument('-i', '--NPY_dir', help='Input folder (NPY folder)', type=str, required=True)
     parser.add_argument('-n', '--EMSR_numbers', help='EMSR cases name', nargs='+', type=int, required=True)
-    parser.add_argument('-ot', '--DB_mono_dir', help='Mono EMSR database folder', type=str, required=True)
     parser.add_argument('--sentinel', help='S1 or S2', type=int, required=True, choices=[1, 2])
     parser.add_argument('-o', '--db_output', help='Global DB output folder ', type=str, required=True)
     parser.add_argument('-si', '--suffix_in', help='Input suffix tag ', type=str, required=False)
