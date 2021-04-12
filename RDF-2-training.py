@@ -21,33 +21,6 @@ from sklearn.metrics import accuracy_score
 from Common import FileSystem
 
 
-def combine_rfs_gpu(rf_a, rf_b):
-    """
-    Combined two trees (Regroup databases) using cuML trees
-    :param rf_a: Tree a
-    :param rf_b: Tree b
-    :return: Combined tree(a,b)
-    """
-    json_a = rf_a.dump_as_json()
-    json_b = rf_b.dump_as_json()
-    return rf_a
-
-
-def combine_rfs(rf_a, rf_b):
-    """
-    Combined two trees (Regroup databases)
-    Taken from https://stackoverflow.com/questions/28489667/combining-random-forest-models-in-scikit-learn
-
-    :param rf_a: Tree a
-    :param rf_b: Tree b
-    :return: Combined tree(a,b)
-    """
-
-    rf_a.estimators_ += rf_b.estimators_
-    rf_a.n_estimators = len(rf_a.estimators_)
-    return rf_a
-
-
 def main_training(args):
 
     npy_dir = args.NPY_dir
@@ -81,9 +54,6 @@ def main_training(args):
         except FileNotFoundError as e:
             print(e)
             continue
-
-        print("data_vt ", np.size(data_vt, 0), np.size(data_vt, 1))
-        print("datardn ", np.size(data_rdn, 0), np.size(data_rdn, 1))
 
         # NPY duplicated rows reduction  for WATER#
         # Perform lex sort and get sorted data
@@ -122,8 +92,6 @@ def main_training(args):
     # Classif ######################################
     # Split into train and test set
     x_train, x_test, y_train, y_test = train_test_split(xb, yb, test_size=0.33)
-    print("x_train shape: ", x_train.shape)
-    print("y_train shape: ", y_train.shape)
 
     # Random Forest
     print("\n###    Random forest training    ###")
