@@ -61,6 +61,7 @@ class MajaProduct(object):
         from Chain.SpotProduct import Spot4Muscate, Spot5Muscate
         from Chain.PleiadesProduct import PleiadesTheiaXS, PleiadesPreprojected
         from Chain.S1Product import Sentinel1Tiled
+        from Chain.TSXProduct import TerraSarXRadiometricallyEnhanced
 
         fpath = filepath
         base = os.path.basename(fpath)
@@ -80,6 +81,7 @@ class MajaProduct(object):
         reg_s1_til = r"^s1(a|b)_\d{2}[A-Z]{3}_vv_[A-Z]{3}_\d{3}_\d{8}t\w{6}.tif$"
         reg_pleiades_theia = r"FCGC\d*(-\d)?"
         reg_pleiades_reprojected = r"DS_PHR\d[A-Z]_\d{15}_\w+_[WE]\d{3}[NS]\d{2}_\d{4}_\d{4}"
+        reg_tsx = r"^T[DS]X\d_SAR__EEC_RE_\w+_\d{8}T\d{6}_\d{8}T\d{6}$"
 
         # Sentinel-2
         if re.search(reg_s2_nat, base):
@@ -117,7 +119,9 @@ class MajaProduct(object):
         # Sentinel-1
         if re.search(reg_s1_til, base):
             return Sentinel1Tiled(fpath, **kwargs)
-        pass
+        # TerraSar_X
+        if re.search(reg_tsx, base):
+            return TerraSarXRadiometricallyEnhanced(fpath, **kwargs)
 
     @property
     def platform(self):
