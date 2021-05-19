@@ -31,45 +31,49 @@ class TerraSarXRadiometricallyEnhanced(MajaProduct):
         self.base = os.path.splitext(self.base)[0]
         self._xml_file = os.path.join(filepath, "%s.xml" % self.base)
         self.images_in_imgdata = XMLTools.get_xpath(self._xml_file, "./productComponents/imageData")
-        print(self.images_in_imgdata)
+        #print('xml_file', self._xml_file)
+        #print('Yeah', self.images_in_imgdata)
+
         # TODO Populate the following variables (and test them):
-        # self._polarisations = [list of paths to all polarisation files] --> Use XML elements above
+        self._polarisations = XMLTools.get_single_xpath(self._xml_file, "./productComponents/imageData/file/location/filename")
+        print('_polarisations', self._polarisations)
+
+        #self._polarisations = [list of paths to all polarisation files] --> Use XML elements above
         # self.base_resolution = tuples of res in x,y-direction in meters using the first file in self._polarisations
         #                        e.g. (2, -2) or (10, -10)
 
-        self._polarisations = []
-        self.base_resolution = ()
+        #self._polarisations = []
+        res = XMLTools.get_res(self._xml_file, "./productInfo/imageDataInfo/imageRaster/rowSpacing")
+        #print(res)
+        self.base_resolution = (res, res)
         self.mnt_resolution = self.base_resolution
         # TODO Populate the functions below that have a TODO in them:
 
     @property
     def platform(self):
-        # TODO
-        raise NotImplementedError
+        return "TerraSAR/TanDEM-X"
 
     @property
     def short_name(self):
-        # TODO
-        raise NotImplementedError
+        return "tsx"
 
     @property
     def type(self):
-        # TODO
-        raise NotImplementedError
+        return "EEC"
 
     @property
     def level(self):
-        # TODO
-        raise NotImplementedError
+        return "l1c"
 
     @property
     def nodata(self):
         # TODO Is it always 0? If not, get that info from the file that is also used for base_resolution
-        raise NotImplementedError
+        return 0 
 
     @property
     def tile(self):
-        raise ValueError("Cannot determine tile ID on a TerraSarX product: %s" % self.base)
+        #raise ValueError("Cannot determine tile ID on a TerraSarX product: %s" % self.base)
+        return "No tile for TSX file"
 
     @property
     def metadata_file(self):
