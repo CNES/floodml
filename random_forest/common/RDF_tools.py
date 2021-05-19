@@ -187,7 +187,7 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
     return vstack_s2, rdn_stack
 
 
-def slope_creator(tmpdir, epsg, extent_str, topo_names):
+def slope_creator(tmpdir, epsg, extent_str, topo_names, res=10):
     """
     :param tmpdir: temporary folder
     :param epsg: epsg tile number
@@ -207,16 +207,21 @@ def slope_creator(tmpdir, epsg, extent_str, topo_names):
     os.system("gdaldem slope -q -of GTiff %s %s" % (tmpwarp, tmpslope))
 
     # Slope formatting (crop and resampling)
-    ds_final = gdal_warp(tmpslope, t_srs="EPSG:%s" % epsg, tr="10 10",
+    ds_final = gdal_warp(tmpslope, t_srs="EPSG:%s" % epsg, tr="%s %s" % (res[0], res[1]),
                          te=extent_str, r="bilinear", ot="Float32")
     # Deleting temporary files
-    FileSystem.remove_file(tmpslope)
-    FileSystem.remove_file(tmpwarp)
+    #FileSystem.remove_file(tmpslope)
+    #FileSystem.remove_file(tmpwarp)
 
     slp = ds_final.array
     slp_norm = slp / 90  # Normalization
     idx_reject_slp = np.where(slp < 0)  # index to reject
 
+    #nexout=tmpslope.replace('.tif', '_resampled.tif')
+    #ds_out = GDalDatasetWrapper(array=ds_final,
+    #                                projection=ds_final.projection,
+    #                                geotransform=ds_final.geotransform)
+    #ds_final.write(nexout, options=["COMPRESS=LZW"], nodata=255)
     return slp_norm, idx_reject_slp
 
 
@@ -258,6 +263,22 @@ def s1_inf_stack_builder(filename, slp_norm):
 
     stacked = np.hstack((np.reshape(s1_vv, (-1, 1)), np.reshape(s1_vh, (-1, 1))))
     vstack = np.hstack((stacked, np.reshape(slp_norm, (-1, 1))))
+    return vstack
+
+def tsx_inf_stack_builder(filename, slp_norm):
+    """
+    Stack builder for Sentinel-1 files for inference purposes
+    :param filename:  Sentinel-1 path and filename for inference
+    :param slp_norm: normalized slope array from MERIT
+    :return: Stack array for inference
+    """
+
+    print("\tFile on which inference will be done: ", filename)
+    ds = GDalDatasetWrapper.from_file(filename)
+
+    tsx = np.array(ds.array/2500, dtype=np.float32)
+    tsx[tsx == 0] = np.nan
+    vstack = np.hstack((np.reshape(tsx, (-1, 1)), np.reshape(slp_norm, (-1, 1))))
     return vstack
 
 
