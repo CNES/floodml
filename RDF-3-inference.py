@@ -29,10 +29,11 @@ def main_inference(args):
     dir_output = args.Inf_ouput
     merit_dir = args.meritdir
     copdem_dir = args.copdemdir
-    sat = args.sentinel
+    sat = args.satellite
     db_path = args.db_path
     gsw_dir = args.gsw
-    products = list(sorted(Dataset.get_available_products(root=input_folder, platforms=["s%s" % sat])))
+    #products = list(sorted(Dataset.get_available_products(root=input_folder, platforms=["s%s" % sat])))
+    products = list(sorted(Dataset.get_available_products(root=input_folder, platforms=[sat])))
     tmp_in = args.tmp_dir
     FileSystem.create_directory(tmp_in)  # Create if not existing
 
@@ -41,6 +42,7 @@ def main_inference(args):
     if not products:
         print("No products found. Exiting...")
         return
+
     # Initialise extent file
     FileSystem.create_directory(dir_output)
 
@@ -56,7 +58,7 @@ def main_inference(args):
     # Write extent file header
     with open(extent_mod, 'a') as the_file:
         the_file.write('Flood extent in 10x10m^2\n')
-
+    print(products)
     # Main loop
     for prod in products:
 
@@ -65,8 +67,8 @@ def main_inference(args):
 
         tile = prod.tile
         print("Tile:", tile)
-
-        if sat == 1:  # Sentinel-1 case
+        
+        if sat == "s1":  # Sentinel-1 case
             filename = prod._vv
             orbit = prod.base.split("_")[4]
             ds_in = GDalDatasetWrapper.from_file(filename)
@@ -85,15 +87,35 @@ def main_inference(args):
             slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
             v_stack = RDF_tools.s1_inf_stack_builder(filename, slp_norm)
             background = None
-        elif sat == 2:  # Sentinel-2 case
+        elif sat == "s2":  # Sentinel-2 case
             filename = prod.find_file(pattern=r"*B0?5(_20m)?.jp2$", depth=5)[0]
             ds_in = GDalDatasetWrapper.from_file(filename)
             date = prod.date.strftime("%Y%m%dT%H%M%S")
             orbit = prod.rel_orbit.replace("R", "")
             v_stack = RDF_tools.s2_inf_stack_builder(prod, tmp_dir)
             background = prod.find_file(pattern=r"*TCI(_20m)?.jp2$", depth=5)[0]
+        elif sat == "tsx":  # TSX
+            filename = os.path.join(input_folder, 'IMAGEDATA', prod._polarisations)
+            print(filename)
+            ds_in = GDalDatasetWrapper.from_file(filename)
+            epsg = str(ds_in.epsg)
+            date = prod.date.strftime("%Y%m%dT%H%M%S")
+            extent_str = ds_in.extent(dtype=str)
+            # MERIT topography file for corresponding tile (S1 case)
+            if dem_choice == "copernicus":
+                print(ds_in.ul_lr)
+                ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
+                lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
+                topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
+            else:
+                topo_names = [os.path.join(merit_dir, tile + ".tif")]
+            print("\tDEM file: %s" % topo_names)
+            slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names, prod.mnt_resolution)
+            slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
+            v_stack = RDF_tools.tsx_inf_stack_builder(filename, slp_norm)
+            background = None
         else:
-            raise ValueError("Unknown Sentinel Satellite. Has to be 1 or 2.")
+            raise ValueError("Unknown  Satellite. Has to be s1, s2 or tsx.")
 
         n_divisions = 20
         windows = np.array_split(v_stack, n_divisions, axis=0)
@@ -113,13 +135,13 @@ def main_inference(args):
 
         dim = ds_filename.array.shape[:2]
 
-        vec_out = np.concatenate(predictions).reshape(dim[1], dim[0])
+        vec_out = np.concatenate(predictions).reshape(dim[0], dim[1])
         exout = np.array(vec_out, dtype=np.uint8)
 
         # Apply nodata
         exout[ds_in.array == 0] = 255
 
-        if sat == 2:
+        if sat == "s2":
             scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
             scl_img = GDalDatasetWrapper.from_file(scl_path).array
             # Add cloud, cloud shadow and snow layers
@@ -132,17 +154,19 @@ def main_inference(args):
 
         # Export
         FileSystem.create_directory(dir_output)
+        #nexout = os.path.join(dir_output,
+                              #'Inference_RDF_S%s_%s_T%s_%s.tif' % (sat, str(date), tile, orbit))
         nexout = os.path.join(dir_output,
-                              'Inference_RDF_S%s_%s_T%s_%s.tif' % (sat, str(date), tile, orbit))
+                              'Inf_C2500_%s' % prod._polarisations)
 
         ds_out = GDalDatasetWrapper(array=exout,
                                     projection=ds_filename.projection,
                                     geotransform=ds_filename.geotransform)
         ds_out.write(nexout, options=["COMPRESS=LZW"], nodata=255)
 
-        static_display_out = nexout.replace("Inference", "RapidMapping").replace(".tif", ".png")
-        dtool.static_display(nexout, tile, prod.date.strftime("%Y-%m-%d %H:%M:%S"), orbit, static_display_out,
-                             gswo_dir=gsw_dir, sentinel=sat, background=background)
+        static_display_out = nexout.replace(".tif", "_RapidMapping.png")
+        dtool.static_display(nexout, "31UDQ", prod.date.strftime("%Y-%m-%d %H:%M:%S"), "", static_display_out,
+                            gswo_dir=gsw_dir, sentinel=sat, background=background)
 
         ds_extent = GDalDatasetWrapper.from_file(nexout)
         FileSystem.remove_directory(tmp_dir)
@@ -157,7 +181,7 @@ def main_inference(args):
         with open(extent_mod, 'a') as the_file:
             the_file.write('%s,%s,%s\n' % (prod.tile, date, np.count_nonzero(ds_extent.array)))
 
-    FileSystem.remove_directory(tmp_in)
+    #FileSystem.remove_directory(tmp_in)
     print("FloodML finished ;)")
 
 
@@ -172,7 +196,7 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--copdemdir', help='Copernicus DEM folder.'
                                                   'Either this or --meritdir has to be set for sentinel 1.',
                         type=str, required=False)
-    parser.add_argument('--sentinel', help='S1 or S2', type=int, required=True, choices=[1, 2])
+    parser.add_argument('--satellite', help='s1, s2 or tsx', type=str, required=True, choices=["s1", "s2", "tsx"])
     parser.add_argument('-db', '--db_path', help='Learning database filepath', type=str, required=True)
     parser.add_argument('-tmp', '--tmp_dir', help='Global DB output folder ', type=str, required=False, default="tmp")
     parser.add_argument('-g', '--gsw', help='Tiled GSW folder', type=str, required=True)
