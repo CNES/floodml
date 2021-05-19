@@ -163,8 +163,8 @@ class GDalDatasetWrapper(object):
         :rtype: tuple of float
         """
         ulx, xres, xskew, uly, yskew, yres = self.geotransform
-        lrx = ulx + (self.array.shape[0] * xres)
-        lry = uly + (self.array.shape[1] * yres)
+        lrx = ulx + (self.array.shape[1] * xres)
+        lry = uly + (self.array.shape[0] * yres)
         return ulx, uly, lrx, lry
 
     def extent(self, order="lonmin-latmin", dtype=float):
