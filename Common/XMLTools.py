@@ -79,4 +79,14 @@ def get_single_xpath(xml, xpath):
     :param xpath: The xpath to be searched for.
     :return:
     """
-    return get_xpath(xml, xpath)[0].text
+    return get_xpath(xml, xpath)[0].text #0 pour HH, 1 pour VV
+
+
+def get_res(xml, xpath):
+    """
+    Get resolution from TSX xml file
+    :param xml: The full path to the xml file
+    :param xpath: The xpath to be searched for.
+    :return:
+    """
+    return float(get_xpath(xml, xpath)[0].text[:-5]) 
