@@ -247,7 +247,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel, backg
                      alpha=1, interpolation="nearest")
     img.set_zorder(3)
 
-    if sentinel == 2:
+    if sentinel == "s2":
         masked_cld_shadow = np.ma.masked_where(data != 2, data)
         cmap3 = matplotlib.colors.ListedColormap(["#439A86"], name='from_list', N=None)  # Color for perma areas
         img3 = ax1.imshow(masked_cld_shadow, extent=extent, transform=ccrs.epsg(projcs), origin='upper',
@@ -317,7 +317,7 @@ def static_display(infile, tile, date, orbit, outfile, gswo_dir, sentinel, backg
     plt.margins(0, 0)
     plt.gca().xaxis.set_major_locator(plt.NullLocator())
     plt.gca().yaxis.set_major_locator(plt.NullLocator())
-    fig.canvas.draw()
+    #fig.canvas.draw()
     plt.savefig(outfile, dpi=600)
 
     return plt
