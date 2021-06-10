@@ -30,24 +30,19 @@ class TerraSarXRadiometricallyEnhanced(MajaProduct):
         super(TerraSarXRadiometricallyEnhanced, self).__init__(filepath, **kwargs)
         self.base = os.path.splitext(self.base)[0]
         self._xml_file = os.path.join(filepath, "%s.xml" % self.base)
-        self.images_in_imgdata = XMLTools.get_xpath(self._xml_file, "./productComponents/imageData")
-        #print('xml_file', self._xml_file)
-        #print('Yeah', self.images_in_imgdata)
+        self.images_in_imgdata = XMLTools.get_xpath(self._xml_file, "./productComponents/imageData/file/location/filename")
+        self.files = [im.text for im in self.images_in_imgdata]
 
-        # TODO Populate the following variables (and test them):
-        self._polarisations = XMLTools.get_single_xpath(self._xml_file, "./productComponents/imageData/file/location/filename")
-        print('_polarisations', self._polarisations)
+        #IMAGE_HH_SRA_stripNear_010.tif
+        self.polarisations = [im.text.split('_')[1] for im in self.images_in_imgdata]
+        #print('_files', self._files)
+        #print('_polarisations', self._polarisations)
 
-        #self._polarisations = [list of paths to all polarisation files] --> Use XML elements above
-        # self.base_resolution = tuples of res in x,y-direction in meters using the first file in self._polarisations
-        #                        e.g. (2, -2) or (10, -10)
-
-        #self._polarisations = []
         res = XMLTools.get_res(self._xml_file, "./productInfo/imageDataInfo/imageRaster/rowSpacing")
         #print(res)
         self.base_resolution = (res, res)
         self.mnt_resolution = self.base_resolution
-        # TODO Populate the functions below that have a TODO in them:
+        self.orbit = int(XMLTools.get_xpath(self._xml_file, "./productInfo/missionInfo/relOrbit")[0].text)
 
     @property
     def platform(self):
