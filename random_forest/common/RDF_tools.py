@@ -18,7 +18,9 @@ from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageTools import gdal_warp, gdal_buildvrt
 from Common import FileSystem
 from Chain import Product
-
+from skimage.filters.rank import majority
+from skimage.morphology import disk, ball
+            
 s2_bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "SCL"]
 
 
@@ -224,6 +226,27 @@ def slope_creator(tmpdir, epsg, extent_str, topo_names, res=10):
     #ds_final.write(nexout, options=["COMPRESS=LZW"], nodata=255)
     return slp_norm, idx_reject_slp
 
+def gsw_cutter(tmpdir, epsg, extent_str, gsw_filesnames, res=10):
+    """
+    :param tmpdir: temporary folder
+    :param epsg: epsg tile number
+
+    :param extent_str: tile extent
+    :param topo_names: DEM filenames from which SLP calculation will be made
+    :return: normalized slope tile & index of pixels to be rejected
+    """
+    # Conversion to float32 format
+    tmpvrt = os.path.join(tmpdir, "Temp_vrt.vrt")
+    tmpwarp = os.path.join(tmpdir, "Temp_32.tif")
+
+    gdal_buildvrt(*gsw_filesnames, dst=tmpvrt)
+    gdal_warp(tmpvrt, tmpwarp, s_srs="EPSG:4326", t_srs="EPSG:%s" % epsg, te=extent_str)
+
+    # Slope formatting (crop and resampling)
+    ds_final = gdal_warp(tmpwarp, t_srs="EPSG:%s" % epsg, tr="%s %s" % (res[0], res[1]),
+                         te=extent_str, r="bilinear", ot="Float32")
+    return ds_final
+
 
 def lee_filter(img, size):
     """
@@ -312,3 +335,16 @@ def s2_inf_stack_builder(product, tmpdir):
     vstack_s2 = np.concatenate((vstack_add, ds_bands_flat), axis=-1)
     gc.collect()
     return vstack_s2
+
+def postreatment(inmat, radius=2):
+    """
+    Post-treatment to be applied to the output of the raw inference.
+
+    :param product:  Sentinel-2 L2A product
+    :param tmpdir: Temporary working directory to write synthetic bands to.
+    :return: Stack array for inference
+    """
+
+    filtered = majority(inmat, disk(radius))
+    return filtered
+
