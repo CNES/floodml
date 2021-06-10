@@ -79,7 +79,7 @@ def get_single_xpath(xml, xpath):
     :param xpath: The xpath to be searched for.
     :return:
     """
-    return get_xpath(xml, xpath)[0].text #0 pour HH, 1 pour VV
+    return get_xpath(xml, xpath)[0].text
 
 
 def get_res(xml, xpath):
