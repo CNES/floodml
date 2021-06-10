@@ -36,3 +36,27 @@ def get_copdem_codes(demdir, ul, lr):
             dem_files.append(demfile)
     return dem_files
 
+def get_gswo_codes(gswdir, ul, lr):
+    """
+    Get the list of GSWO files (10deg x 10deg) for a given site.
+
+    :param gswdir: The directory where all Global Surface Water Occurrence files are stored in.
+    No subfolders are allowed, all files need to be in the same directory
+    :param ul: Upper left coordinate (lat, lon) of the site expressed in WGS-84 (EPSG 4326)
+    :param lr: Lower right coordinate (lat, lon) of the site expressed in WGS-84 (EPSG 4326)
+    :return: The list of filenames needed in order to cover to whole site.
+    """
+    import math
+    ul_latlon = [math.floor(ul[1]/10)*10, math.ceil(ul[0]/10)*10]
+    lr_latlon = [math.ceil(lr[1]/10)*10, math.floor(lr[0]/10)*10]
+    gsw_files = []
+    for y in range(lr_latlon[1], ul_latlon[1]+1, 10):
+        for x in range(ul_latlon[0], lr_latlon[0]+1, 10):
+            code_lat = "N" if y >= 0 else "S"
+            code_lon = "E" if x >= 0 else "W"
+            gswfile = os.path.join(gswdir,
+                                   "occurrence_%d%s_%d%s.tif" % ( abs(x),code_lon, abs(y), code_lat))
+            assert os.path.isfile(gswfile), "Cannot find GSWO file: %s" % gswfile
+            gsw_files.append(gswfile)
+    return gsw_files
+
