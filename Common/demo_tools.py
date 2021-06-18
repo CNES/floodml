@@ -243,7 +243,6 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
     # Flooded area display (in red), permanent water in blue
     masked_data = np.ma.masked_where(data != 1, data)
     masked_gsw = np.ma.masked_where(gswo_projected.array < 50, gswo_projected.array)
-    masked_gsw = np.ma.masked_where(gswo_projected.array == 255, masked_gsw)
     masked_gsw = np.ma.masked_where(data > 1, masked_gsw)
 
     cmap2 = matplotlib.colors.ListedColormap(["#222E50"], name='from_list', N=None)  # Color for perma areas
