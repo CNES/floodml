@@ -34,6 +34,7 @@ def main_inference(args):
     db_path = args.db_path
     gsw_dir = args.gsw
     post = args.post
+    rad = args.rad
 
     products = list(sorted(Dataset.get_available_products(root=input_folder, platforms=[sat])))
 
@@ -49,83 +50,89 @@ def main_inference(args):
     # Initialise extent file
     FileSystem.create_directory(dir_output)
 
+
     # Select DEM based on provided paths
     dem_choice = "copernicus" if copdem_dir else "merit"
 
-    #extent_out = os.path.join(dir_output, "extents_%s_%s_0.csv" % (products[0].date.strftime("%Y%m%d"),
-    #                                                               products[-1].date.strftime("%Y%m%d")))
-    #for i in range(100):
-    #    extent_mod = extent_out.replace("_0.csv", "_%03d.csv" % i)
-    #    if not os.path.exists(extent_mod):
-    #        break
-    ## Write extent file header
-    #with open(extent_mod, 'a') as the_file:
-    #    the_file.write('Flood extent in 10x10m^2\n')
-    print(products)
+    extent_out = os.path.join(dir_output, "extents_%s_%s_0.csv" % (products[0].date.strftime("%Y%m%d"),
+                                                                   products[-1].date.strftime("%Y%m%d")))
+    for i in range(100):
+        extent_mod = extent_out.replace("_0.csv", "_%03d.csv" % i)
+        if not os.path.exists(extent_mod):
+            break
+    # Write extent file header
+    with open(extent_mod, 'a') as the_file:
+        the_file.write('Flood extent in 10x10m^2\n')
+
 
     # Main loop
     for prod in products:
 
         # TMP folder
+        print(prod)
         tmp_dir = tempfile.mkdtemp(dir=tmp_in)
-        tile = prod.tile
-        print("prod.base:", prod.base)
-        print("prod.files:", prod.files)
-        print("prod.polarisations:", prod.polarisations)
-        print("prod.orbit:", prod.orbit)
-  
 
-        for pol in range(len(prod.files)):
+        ## For each product determine the files to be processed
+        filenames = []
+        if sat == "s1":
+            filenames.append(prod._vv)
+            polar = prod.polarisations
+        elif sat == "s2":
+            filenames.append(prod.find_file(pattern=r"*B0?5(_20m)?.jp2$", depth=5)[0])
+            polar = ""
+        elif sat == "tsx":
+            for f in range(len(prod.files)):
+                filenames.append(os.path.join(input_folder, 'IMAGEDATA', prod.files[f]))
+                                                            
+        for filename in filenames:
         
             if sat == "s1":  # Sentinel-1 case
-                filename = prod._vv
                 orbit = prod.base.split("_")[4]
                 ds_in = GDalDatasetWrapper.from_file(filename)
                 epsg = str(ds_in.epsg)
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
                 extent_str = ds_in.extent(dtype=str)
 
-
-                # MERIT topography file for corresponding tile (S1 case)
+                #Topography file for corresponding tile (S1 case)
                 if dem_choice == "copernicus":
                     ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
                     lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
                     topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
                 else:
-                    topo_names = [os.path.join(merit_dir, tile + ".tif")]
+                    topo_names = [os.path.join(merit_dir, prod.tile + ".tif")]
                 print("\tDEM file: %s" % topo_names)
-                slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names)
+                slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names, res=[10, 10])
                 slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
                 v_stack = RDF_tools.s1_inf_stack_builder(filename, slp_norm)
                 background = None
+
             elif sat == "s2":  # Sentinel-2 case
-                filename = prod.find_file(pattern=r"*B0?5(_20m)?.jp2$", depth=5)[0]
                 ds_in = GDalDatasetWrapper.from_file(filename)
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
                 orbit = prod.rel_orbit.replace("R", "")
                 v_stack = RDF_tools.s2_inf_stack_builder(prod, tmp_dir)
+                print(np.size(v_stack))
                 background = prod.find_file(pattern=r"*TCI(_20m)?.jp2$", depth=5)[0]
+
             elif sat == "tsx":  # TSX
-                #filename = os.path.join(input_folder, prod.base, 'IMAGEDATA', prod.files[pol])
-                filename = os.path.join(input_folder, 'IMAGEDATA', prod.files[pol])
+                polar = filename.split('/')[-1].split('_')[1]
                 ds_in = GDalDatasetWrapper.from_file(filename)
                 epsg = str(ds_in.epsg)
                 orbit = prod.orbit
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
                 extent_str = ds_in.extent(dtype=str)
 
-
-                # MERIT topography file for corresponding tile (S1 case)
+                # Topography files for corresponding tile 
                 if dem_choice == "copernicus":
                     ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
                     lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
                     topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
                 else:
-                    topo_names = [os.path.join(merit_dir, tile + ".tif")]
+                    topo_names = [os.path.join(merit_dir, tile + ".tif")] ##Issue to be solved
                 print("\tDEM file: %s" % topo_names)
                 slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names, prod.mnt_resolution)
                 slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
-                v_stack = RDF_tools.tsx_inf_stack_builder(filename, slp_norm)
+                v_stack = RDF_tools.tsx_inf_stack_builder(filename, slp_norm, C=2500) #Calibration coefficient set manually here
                 background = None
             else:
                 raise ValueError("Unknown  Satellite. Has to be s1, s2 or tsx.")
@@ -170,36 +177,66 @@ def main_inference(args):
             # Export
             FileSystem.create_directory(os.path.join(dir_output, prod.base))
 
-            
-            basesplit = prod.base.replace('___','_').replace('__','_').split('_')
-            # If post-treatment:
-            if post:
-                exout = RDF_tools.postreatment(exout, radius=3)
-                postsuf = 'POST'
-            else:
-                postsuf = 'RAW'
-            nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s.tif' % (basesplit[0][0:3], basesplit[2], 
-                                                            prod.polarisations[pol], basesplit[7], basesplit[8], postsuf))
+
+            # Export raw inference
+            if sat == "s1": 
+                nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.level.upper(), 
+                                                            prod.tile, date, orbit, 'RAW'))
+            elif sat == "s2":
+                nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s.tif' % (sat.upper(), orbit, date, 'RAW')) 
+            elif sat == "tsx":
+                basesplit = prod.base.replace('___','_').replace('__','_').split('_')
+                nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.type.upper(), 
+                                                            polar, basesplit[7], basesplit[8], orbit, 'RAW'))
 
             ds_out = GDalDatasetWrapper(array=np.array(exout),
                                         projection=ds_filename.projection,
                                         geotransform=ds_filename.geotransform)
             ds_out.write(nexout, options=["COMPRESS=LZW"], nodata=255)
-            ##GSW
+ 
+            # If post-treatment:
+            if post==1:
+                exout = RDF_tools.postreatment(exout, radius=rad)
+                postsuf = 'POST_MAJr%s' % str(rad).zfill(2)
+            
+                if sat == "s1": 
+                    nexoutpost = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.level.upper(), 
+                                                                prod.tile, date, orbit, postsuf))
+                elif sat == "s2":
+                    nexoutpost = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s.tif' % (sat.upper(), orbit, date, postsuf)) 
+                elif sat == "tsx":
+                    basesplit = prod.base.replace('___','_').replace('__','_').split('_')
+                    nexoutpost = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.type.upper(), 
+                                                                polar, basesplit[7], basesplit[8], orbit, postsuf)) 
+
+                ds_out = GDalDatasetWrapper(array=np.array(exout),
+                                            projection=ds_filename.projection,
+                                            geotransform=ds_filename.geotransform)
+                ds_out.write(nexoutpost, options=["COMPRESS=LZW"], nodata=255)
+
+            #### Rapid mapping map creation
+
+            ## GSW overlay selection
             ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
             lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
             gsw_files = get_gswo_codes(gsw_dir, ul_latlon, lr_latlon)
             print("\tGSWO file: %s" % gsw_files)
-            ##GSW END
 
+            # Raw inference
             static_display_out = nexout.replace(".tif", "_RapidMapping.png")
-            dtool.static_display(nexout, tmp_dir, gsw_files,  prod.date.strftime("%Y-%m-%d %H:%M:%S"), prod.polarisations[pol], 
-                                                            static_display_out, prod.orbit, sat=sat, background=background)
+            dtool.static_display(nexout, tmp_dir, gsw_files,  prod.date.strftime("%Y-%m-%d %H:%M:%S"), polar, 
+                                                            static_display_out, orbit, sat=sat, background=background) 
+                                              
+            # With post-processing
+            if post==1:
+                static_display_out = nexoutpost.replace(".tif", "_RapidMapping.png")
+                dtool.static_display(nexoutpost, tmp_dir, gsw_files,  prod.date.strftime("%Y-%m-%d %H:%M:%S"), polar, 
+                                                                static_display_out, orbit, sat=sat, background=background, post=post, rad=rad) 
 
             # Write output file for current product
-            with open(nexout.replace(".tif", ".txt"), 'a') as the_file:
-                the_file.write('%s\n' % os.path.abspath(nexout))
-                the_file.write('%s\n' % os.path.abspath(static_display_out))
+            # with open(nexout.replace(".tif", ".txt"), 'a') as the_file:
+            #     the_file.write('%s\n' % os.path.abspath(nexout))
+            #     the_file.write('%s\n' % os.path.abspath(static_display_out))
             #    the_file.write('%s\n' % os.path.abspath(extent_mod))
 
             ### Write extent file
@@ -225,7 +262,8 @@ if __name__ == "__main__":
     parser.add_argument('-db', '--db_path', help='Learning database filepath', type=str, required=True)
     parser.add_argument('-tmp', '--tmp_dir', help='Global DB output folder ', type=str, required=False, default="tmp")
     parser.add_argument('-g', '--gsw', help='Tiled GSW folder', type=str, required=True)
-    parser.add_argument('-p', '--post', help='Post-treatment to be applied to the output', type=bool, required=False)
+    parser.add_argument('-p', '--post', help='Post-treatment to be applied to the output', type=int, required=False)
+    parser.add_argument('-r', '--rad', help='MAj filter radius', type=int, required=False)
 
     arg = parser.parse_args()
 
