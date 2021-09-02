@@ -55,13 +55,13 @@ def draw_legend(ax3, sat):
     Draw legend in a seperate subplot
 
     :param ax3: Ax-Handle
-    :param sentinel: 1 or 2 (S1 or S2)
+    :param sentinel: 1 or 2 (s1 or s2)
     :return:
     """
     ax3.set_title("Legend", loc="left")
     ax3.set_xlim(0, 1)
     ax3.set_ylim(0, 1)
-    if sat == 'S2':
+    if sat == 's2':
         flood_sq = patches.Rectangle((0, .8), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#AA0000', alpha=1)
         gsw_sq = patches.Rectangle((0., .6), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#222E50', alpha=1)
         cldsh_sq = patches.Rectangle((0., .4), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#439A86', alpha=1)
@@ -108,20 +108,31 @@ def draw_data_source(ax4, **kwargs):
     # TABLE
     proj = kwargs.get("projection", "Unknown")
     source = kwargs.get("sat", "Unknown")
+    post = kwargs.get("post", "Unknown")
+    rad = kwargs.get("rad", "Unknown")
+    orbit = kwargs.get("orbit", "Unknown")
+    date = kwargs.get("date", "Unknown")
+    pol = kwargs.get("pol", "Unknown")
 
     if source=='s1': dispsat='Sentinel-1'
     elif source=='s2': dispsat='Sentinel-2'
     elif source=='tsx': dispsat='TerraSAR-X/TanDEM-X'
     else: dispsat='Unknown source'
 
-    orbit = kwargs.get("orbit", "Unknown")
-    date = kwargs.get("date", "Unknown")
-    pol = kwargs.get("pol", "Unknown")
-    table_vals = [['Map Projection', str(proj)],
+    if source=='s1' or 'tsx':
+        table_vals = [['Map Projection', str(proj)],
                   ['Data source', str(dispsat)],
                   ['Relative orbit', str(orbit)],
                   ['Acq. date (UTC)', str(date)],
                   ['Polarization', str(pol)]]
+    elif source=='s2':
+        table_vals = [['Map Projection', str(proj)],
+                  ['Data source', str(dispsat)],
+                  ['Relative orbit', str(orbit)],
+                  ['Acq. date (UTC)', str(date)]]
+
+    if post==1:
+        table_vals = np.vstack((table_vals, ['Post-processing', 'Majority filter r=%s' % rad]))
 
     n_lines = len(table_vals)
     line_width = .2
@@ -155,7 +166,7 @@ def draw_disclaimer(ax6, add=""):
     ax6.axis('off')
 
 
-def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, background=None):
+def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, background=None, post=None, rad=None):
     """
     Create a static display map using the binary inference mask.
     Overlays the mask over a google-maps/OSM background - Needs internet in order to request the data.
@@ -243,6 +254,7 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
     # Flooded area display (in red), permanent water in blue
     masked_data = np.ma.masked_where(data != 1, data)
     masked_gsw = np.ma.masked_where(gswo_projected.array < 50, gswo_projected.array)
+    #masked_gsw = np.ma.masked_where(gswo_projected.array == 255, masked_gsw)
     masked_gsw = np.ma.masked_where(data > 1, masked_gsw)
 
     cmap2 = matplotlib.colors.ListedColormap(["#222E50"], name='from_list', N=None)  # Color for perma areas
@@ -308,8 +320,9 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
     draw_legend(ax3, sat=sat)
 
     # AX4 - Data information
+    print("First post:",post)
     draw_data_source(ax4, projection="EPSG:%s" % ds_in.epsg, sat=sat, orbit=orbit, date=date,
-                     pol=pol)
+                     pol=pol, post=post, rad=rad)
 
     # AX5 - Disclaimer
     draw_disclaimer(ax5, add=disclaimer_add)
