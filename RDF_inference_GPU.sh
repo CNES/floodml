@@ -26,8 +26,6 @@ infold='/work/OT/floodml/data/deliveries/phase-1-cls/'
 oufold='/work/scratch/fatrasc/FLOODDAM/FDAM_TSX/Inferences/'
 medir='/work/OT/floodml/data/deliveries/phase-1-cls/MERIT_S2/'
 cedir='/work/datalake/static_aux/MNT/Copernicus_DSM/'
-type=1
-dbpath='/work/scratch/fatrasc/FLOODDAM/DB_RDF/DB_RDF_global_S1_VVseul.sav'
 gswdir='/work/OT/floodml/data/deliveries/phase-1-cls/GSW_Tiled/'
 
 
@@ -39,8 +37,8 @@ infold='/work/OT/floodml/data/inputs_tsx/TDX1_SAR__EEC_RE___SM_S_SRA_20180131T17
 
 oufold='/work/scratch/fatrasc/FLOODDAM/FDAM_TSX/Inferences/Paris'
 dbpath='/work/scratch/fatrasc/FLOODDAM/DB_RDF/DB_RDF_global_S1_VVseul.sav'
-python RDF-3-inference.py -i $infold -o $oufold -c $cedir --satellite tsx -db $dbpath --gsw $gswdir 
-
+ 
+python RDF-3-inference.py -i $infold -o $oufold -c $cedir --satellite tsx -db $dbpath --gsw $gswdir --post 1 --rad 3
 
 echo "    Python Inference script execution over"
 
@@ -49,21 +47,17 @@ exit 1
 #parser.add_argument('-i', '--input', help='Input EMSR folder', type=str, required=True)
 #parser.add_argument('-o', '--Inf_ouput', help='Output folder', type=str, required=True)
 #parser.add_argument('-m', '--meritdir', help='MERIT DEM folder.'
-#                                                 'Either this or --copdemdir has to be set for sentinel 1.',
-#                        type=str, required=False)
+#                                                'Either this or --copdemdir has to be set for sentinel 1.',
+#                    type=str, required=False)
 #parser.add_argument('-c', '--copdemdir', help='Copernicus DEM folder.'
-#                                                  'Either this or --meritdir has to be set for sentinel 1.',
-#                        type=str, required=False)
-#parser.add_argument('--sentinel', help='S1 or S2', type=int, required=True, choices=[1, 2])
+#                                                'Either this or --meritdir has to be set for sentinel 1.',
+#                    type=str, required=False)
+#parser.add_argument('--satellite', help='s1, s2 or tsx', type=str, required=True, choices=["s1", "s2", "tsx"])
 #parser.add_argument('-db', '--db_path', help='Learning database filepath', type=str, required=True)
 #parser.add_argument('-tmp', '--tmp_dir', help='Global DB output folder ', type=str, required=False, default="tmp")
 #parser.add_argument('-g', '--gsw', help='Tiled GSW folder', type=str, required=True)
-#parser.add_argument('-ti', '--tile_ref', help='Input tile ref', type=str, required=False)
-#parser.add_argument('-orb', '--orbit', help='Input orbit number', type=str, required=False)
-#parser.add_argument('-d', '--date', help='Input date tag ', type=str, required=False)
-#parser.add_argument('-ot', '--outag', help='Output suffix tag ', type=str, required=False)
-
-
+#parser.add_argument('-p', '--post', help='Post-treatment to be applied to the output', type=int, required=False)
+#parser.add_argument('-r', '--rad', help='MAj filter radius', type=int, required=False)
 
 
 
