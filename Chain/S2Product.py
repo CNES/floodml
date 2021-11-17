@@ -92,10 +92,10 @@ class Sentinel2Natif(MajaProduct):
                  "val": str(self.mnt_resolution[0] * 2) + " " + str(self.mnt_resolution[1] * 2)}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
-        output_folder = kwargs.get("wdir", self.fpath)
+        output_folder = kwargs.get("wdir", os.path.join(self.fpath, "index"))
         output_bname = "_".join([self.base.split(".")[0], synthetic_band.upper() + ".tif"])
         output_filename = kwargs.get("output_filename", os.path.join(output_folder, output_bname))
-        max_value = kwargs.get("max_value", 10000.)
+        max_value = kwargs.get("max_value", 5000.)
         # Skip existing:
         if os.path.exists(output_filename):
             return output_filename
@@ -105,7 +105,7 @@ class Sentinel2Natif(MajaProduct):
             b8 = self.find_file(pattern=r"*B0?8(_10m)?.jp2$", depth=5)[0]
             ds_red = GDalDatasetWrapper.from_file(b4)
             ds_nir = GDalDatasetWrapper.from_file(b8)
-            ds_ndvi = ImageApps.get_ndvi(ds_red, ds_nir, vrange=(0, max_value), dtype=np.int16)
+            ds_ndvi = ImageApps.get_ndvi(ds_red, ds_nir, vrange=(-max_value, max_value), dtype=np.int16)
             ds_ndvi.write(output_filename, options=["COMPRESS=DEFLATE"])
         elif synthetic_band.lower() == "mndwi":
             # TODO Check if the right bands are used
@@ -113,9 +113,9 @@ class Sentinel2Natif(MajaProduct):
             FileSystem.create_directory(output_folder)
             b3 = self.find_file(pattern=r"*B0?3(_10m)?.jp2$", depth=5)[0]
             b11 = self.find_file(pattern=r"*B11(_20m)?.jp2$", depth=5)[0]
-            ds_green = ImageTools.gdal_translate(b3, tr="20 20", r="cubic")
+            ds_green = ImageTools.gdal_translate(b3, tr="10 10", r="cubic")
             ds_swir = GDalDatasetWrapper.from_file(b11)
-            ds_ndsi = ImageApps.get_ndsi(ds_green, ds_swir, vrange=(0, max_value), dtype=np.int16)
+            ds_ndsi = ImageApps.get_ndsi(ds_green, ds_swir, vrange=(-max_value, max_value), dtype=np.int16)
             ds_ndsi.write(output_filename, options=["COMPRESS=DEFLATE"])
         elif synthetic_band.lower() == "mca_sim":
             FileSystem.create_directory(output_folder)

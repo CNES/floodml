@@ -11,6 +11,7 @@ Project:        FloodML, CNES
 import os
 import joblib
 import numpy as np
+from datetime import datetime
 import argparse
 from random_forest.common import RDF_tools
 import tempfile
@@ -20,6 +21,7 @@ from Common import FileSystem
 from deep_learning.Imagery.Dataset import Dataset
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageIO import transform_point
+from Common.ImageTools import gdal_warp, gdal_buildvrt
 from Chain.DEM import get_copdem_codes
 from Chain.DEM import get_gswo_codes
 
@@ -78,14 +80,14 @@ def main_inference(args):
             filenames.append(prod._vv)
             polar = prod.polarisations
         elif sat == "s2":
-            filenames.append(prod.find_file(pattern=r"*B0?5(_20m)?.jp2$", depth=5)[0])
+            filenames.append(prod.find_file(pattern=r"*B0?4(_10m)?.jp2$", depth=5)[0])
             polar = ""
         elif sat == "tsx":
             for f in range(len(prod.files)):
                 filenames.append(os.path.join(input_folder, 'IMAGEDATA', prod.files[f]))
                                                             
         for filename in filenames:
-        
+            start=datetime.now()
             if sat == "s1":  # Sentinel-1 case
                 orbit = prod.base.split("_")[4]
                 ds_in = GDalDatasetWrapper.from_file(filename)
@@ -111,7 +113,6 @@ def main_inference(args):
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
                 orbit = prod.rel_orbit.replace("R", "")
                 v_stack = RDF_tools.s2_inf_stack_builder(prod, tmp_dir)
-                print(np.size(v_stack))
                 background = prod.find_file(pattern=r"*TCI(_20m)?.jp2$", depth=5)[0]
 
             elif sat == "tsx":  # TSX
@@ -137,7 +138,6 @@ def main_inference(args):
             else:
                 raise ValueError("Unknown  Satellite. Has to be s1, s2 or tsx.")
 
-            
             n_divisions = 20
             windows = np.array_split(v_stack, n_divisions, axis=0)
             predictions = []
@@ -163,20 +163,31 @@ def main_inference(args):
             # Apply nodata
             exout[ds_in.array == 0] = 255
 
+            # if sat == "s2":
+            #     scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
+            #     # scl_img = GDalDatasetWrapper.from_file(scl_path).array
+            #     scl_img = gdal_warp(scl_path, tr="10 10", r="cubic").array
+            #     #:Add cloud, cloud shadow and snow layers
+            #     cld_shadow = scl_img == 3
+            #     cld = (scl_img >= 8) & (scl_img <= 10)
+            #     snw = scl_img == 11
+            #     exout[cld_shadow] = 2
+            #     exout[cld] = 3
+            #     exout[snw] = 4
+ 
             if sat == "s2":
+                blue = prod.find_file(pattern=r"\w+B02_10m.jp2$", depth=5)[0]
+                blue_img = GDalDatasetWrapper.from_file(blue).array
+                ex_roof = blue_img >1000
+                exout[ex_roof] = 3
+
                 scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
-                scl_img = GDalDatasetWrapper.from_file(scl_path).array
-                # Add cloud, cloud shadow and snow layers
+                scl_img = gdal_warp(scl_path, tr="10 10", r="cubic").array
                 cld_shadow = scl_img == 3
-                cld = (scl_img >= 8) & (scl_img <= 10)
-                snw = scl_img == 11
                 exout[cld_shadow] = 2
-                exout[cld] = 3
-                exout[snw] = 4
 
             # Export
             FileSystem.create_directory(os.path.join(dir_output, prod.base))
-
 
             # Export raw inference
             if sat == "s1": 
@@ -192,7 +203,7 @@ def main_inference(args):
             ds_out = GDalDatasetWrapper(array=np.array(exout),
                                         projection=ds_filename.projection,
                                         geotransform=ds_filename.geotransform)
-            ds_out.write(nexout, options=["COMPRESS=LZW"], nodata=255)
+            ds_out.write(nexout, options=["COMPRESS=LZW"], nodata=255) 
  
             # If post-treatment:
             if post==1:
@@ -215,7 +226,7 @@ def main_inference(args):
                 ds_out.write(nexoutpost, options=["COMPRESS=LZW"], nodata=255)
 
             #### Rapid mapping map creation
-
+            
             ## GSW overlay selection
             ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
             lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
@@ -232,7 +243,7 @@ def main_inference(args):
                 static_display_out = nexoutpost.replace(".tif", "_RapidMapping.png")
                 dtool.static_display(nexoutpost, tmp_dir, gsw_files,  prod.date.strftime("%Y-%m-%d %H:%M:%S"), polar, 
                                                                 static_display_out, orbit, sat=sat, background=background, post=post, rad=rad) 
-
+            
             # Write output file for current product
             # with open(nexout.replace(".tif", ".txt"), 'a') as the_file:
             #     the_file.write('%s\n' % os.path.abspath(nexout))
@@ -242,9 +253,11 @@ def main_inference(args):
             ### Write extent file
             #with open(extent_mod, 'a') as the_file:
             #    the_file.write('%s,%s,%s\n' % (prod.tile, date, np.count_nonzero(ds_extent.array)))
+            print(datetime.now()-start)
+        
     FileSystem.remove_directory(tmp_dir)       
     FileSystem.remove_directory(tmp_in)
-    print("FloodML finished ;)")
+    print("Inference finished ;)")
 
 
 if __name__ == "__main__":

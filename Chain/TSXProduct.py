@@ -33,13 +33,9 @@ class TerraSarXRadiometricallyEnhanced(MajaProduct):
         self.images_in_imgdata = XMLTools.get_xpath(self._xml_file, "./productComponents/imageData/file/location/filename")
         self.files = [im.text for im in self.images_in_imgdata]
 
-        #IMAGE_HH_SRA_stripNear_010.tif
-        self.polarisations = [im.text.split('_')[1] for im in self.images_in_imgdata]
-        #print('_files', self._files)
-        #print('_polarisations', self._polarisations)
+        #self.polarisations = [im.text.split('_')[1] for im in self.images_in_imgdata]
 
         res = XMLTools.get_res(self._xml_file, "./productInfo/imageDataInfo/imageRaster/rowSpacing")
-        #print(res)
         self.base_resolution = (res, res)
         self.mnt_resolution = self.base_resolution
         self.orbit = int(XMLTools.get_xpath(self._xml_file, "./productInfo/missionInfo/relOrbit")[0].text)

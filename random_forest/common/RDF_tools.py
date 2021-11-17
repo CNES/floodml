@@ -17,9 +17,11 @@ from functools import reduce
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageTools import gdal_warp, gdal_buildvrt
 from Common import FileSystem
+from Common import ImageTools
 from Chain import Product
 from skimage.filters.rank import majority
 from skimage.morphology import disk, ball
+import matplotlib.pyplot as plt
             
 s2_bands = ["B01", "B02", "B03", "B04", "B05", "B06", "B07", "B08", "B8A", "B09", "B11", "B12", "SCL"]
 
@@ -107,7 +109,6 @@ def s1_prep_stack_builder(s1_vv, slp_norm, idx_reject_gswo, idx_reject_slp, mask
                     
     return vstack_s1, rdn_stack
 
-
 def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask_rdn, vstack_s2, rdn_stack):
     """
     S2 parsing and processing (MNDWI & NDVI) with GSWO (water proof)
@@ -123,19 +124,27 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
     """
 
     for j, s2 in enumerate(s2files):
+
         prod = Product.MajaProduct.factory(s2)
         print(prod)
         # MNDWI and NDVI file loading:
-        ds_mndwi = gdal_warp(prod.get_synthetic_band("mndwi"), tr="20 20", r="cubic")
-        ds_ndvi = gdal_warp(prod.get_synthetic_band("ndvi"), tr="20 20", r="cubic")
+        ds_mndwi = gdal_warp(prod.get_synthetic_band("mndwi"), tr="10 10", r="cubic")
+        ds_ndvi = gdal_warp(prod.get_synthetic_band("ndvi"), tr="10 10", r="cubic")
         mndwi = ds_mndwi.array
         ndvi = ds_ndvi.array
 
-        bands = [prod.find_file(pattern=r"\w+%s\w+.jp2$" % b, depth=5)[0] for b in s2_bands]
-        ds_bands = [gdal_warp(f, tr="20 20", r="cubic").array for f in bands]
+        #bands = [prod.find_file(pattern=r"\w+%s\w+.jp2$" % b, depth=5)[0] for b in s2_bands]
+        #ds_bands = [gdal_warp(f, tr="20 20", r="cubic").array for f in bands]
 
         scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
-        scl_img = GDalDatasetWrapper.from_file(scl_path).array
+        ####scl_img = GDalDatasetWrapper.from_file(scl_path).array
+        scl_img = gdal_warp(scl_path, tr="10 10", r="cubic").array
+        
+        # No-data field
+        outfield = np.where(scl_img == 0)
+        mndwi[outfield] = -10000
+        ndvi[outfield] = -10000
+
         # Get cloud, cloud shadow and snow layers
         cld_shadow = np.where(scl_img == 3)
         cld = np.where((scl_img >= 8) & (scl_img <= 10))
@@ -147,29 +156,31 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
         mndwi[cld] = -10000
         ndvi[cld_shadow] = -10000
         ndvi[cld] = -10000
-        for b in ds_bands:
-            b[idx_reject_gswo] = -10000
-            b[cld] = -10000
-            b[cld_shadow] = -10000
+        #for b in ds_bands:
+            #b[idx_reject_gswo] = -10000
+            #b[cld] = -10000
+            #b[cld_shadow] = -10000
 
+        nonzeroroi = np.flatnonzero(ndvi[np.unravel_index(imask_roi, mask_gswo.shape)] != -10000) * 1
         nonzero = np.flatnonzero(ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)] != -10000) * 1
         if (len(np.where(ndvi > -10000)[0]) != 0) & (len(nonzero) != 0):
-            mndwi = mndwi / 5000
             ndvi = ndvi / 5000
+            mndwi = mndwi / 5000
 
+            #print('NDVI', 100*ndvi[np.unravel_index(imask_roi, mask_gswo.shape)][nonzeroroi])
+            #print('MNDWI', 100*mndwi[np.unravel_index(imask_roi, mask_gswo.shape)][nonzeroroi])
             # Final
             if not vstack_s2.any():
-                vstack_add = np.vstack((ndvi[np.unravel_index(imask_roi, mask_gswo.shape)],
-                                        mndwi[np.unravel_index(imask_roi, mask_gswo.shape)]))
-                vstack_bands = np.array([b[np.unravel_index(imask_roi, mask_gswo.shape)] for b in ds_bands])
-                vstack_s2 = np.concatenate((vstack_add, vstack_bands), axis=0)
+                vstack_s2 = np.vstack((ndvi[np.unravel_index(imask_roi, mask_gswo.shape)][nonzeroroi],
+                                        mndwi[np.unravel_index(imask_roi, mask_gswo.shape)][nonzeroroi]))
+                #vstack_bands = np.array([b[np.unravel_index(imask_roi, mask_gswo.shape)] for b in ds_bands]) ???
+                #vstack_s2 = np.concatenate((vstack_add, vstack_bands), axis=0) ???
             else:
-                vstack_s2_tmp = np.vstack((ndvi[np.unravel_index(imask_roi, mask_gswo.shape)],
-                                           mndwi[np.unravel_index(imask_roi, mask_gswo.shape)]))
+                vstack_s2_tmp = np.vstack((ndvi[np.unravel_index(imask_roi, mask_gswo.shape)][nonzeroroi],
+                                           mndwi[np.unravel_index(imask_roi, mask_gswo.shape)][nonzeroroi]))
                 vstack_s2 = np.hstack((vstack_s2, vstack_s2_tmp))
-
+            #print(vstack_s2)
             # Random selection stack creation/updating (on array of same size of ROI)
-            print("Length nonzero:", len(nonzero), len(np.flatnonzero(mask_gswo)))
             if len(nonzero) > len(np.flatnonzero(mask_gswo)):
                 rdn = np.random.choice(len(nonzero), size=len(np.flatnonzero(mask_gswo)), replace=False)
             else:
@@ -177,17 +188,16 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
                 print("\t\t\tBeware: probably more water than ground in the image")
 
             if not rdn_stack.any():
-                rdn_add = np.vstack((ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]],
+                rdn_stack = np.vstack((ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]],
                                      mndwi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]]))
-                rdn_bands = np.array([b[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]] for b in ds_bands])
-                rdn_stack = np.concatenate((rdn_add, rdn_bands), axis=0)
+                #rdn_bands = np.array([b[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]] for b in ds_bands]) ???
+                #rdn_stack = np.concatenate((rdn_add, rdn_bands), axis=0) ???
             else:
                 rdn_stack_tmp1 = np.vstack((ndvi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]],
                                             mndwi[np.unravel_index(imask_rdn, mask_gswo.shape)][nonzero[rdn]]))
                 rdn_stack = np.hstack((rdn_stack, rdn_stack_tmp1))
 
     return vstack_s2, rdn_stack
-
 
 def slope_creator(tmpdir, epsg, extent_str, topo_names, res=10):
     """
@@ -247,7 +257,6 @@ def gsw_cutter(tmpdir, epsg, extent_str, gsw_filesnames, res=10):
                          te=extent_str, r="bilinear", ot="Float32")
     return ds_final
 
-
 def lee_filter(img, size):
     """
     :param img: Image array to be filtered
@@ -263,7 +272,6 @@ def lee_filter(img, size):
     img_weights = img_variance / (img_variance + overall_variance)
     img_output = img_mean + img_weights * (img - img_mean)
     return img_output
-
 
 def s1_inf_stack_builder(filename, slp_norm):
     """
@@ -288,22 +296,22 @@ def s1_inf_stack_builder(filename, slp_norm):
     vstack = np.hstack((stacked, np.reshape(slp_norm, (-1, 1))))
     return vstack
 
-def tsx_inf_stack_builder(filename, slp_norm):
+def tsx_inf_stack_builder(filename, slp_norm, C=2500):
     """
     Stack builder for Sentinel-1 files for inference purposes
     :param filename:  Sentinel-1 path and filename for inference
     :param slp_norm: normalized slope array from MERIT
+    :param C: empirical value to try to calibrate the value to the propper sigma0
     :return: Stack array for inference
     """
 
     print("\tFile on which inference will be done: ", filename)
     ds = GDalDatasetWrapper.from_file(filename)
 
-    tsx = np.array(ds.array/2500, dtype=np.float32)
+    tsx = np.array(ds.array/C, dtype=np.float32) 
     tsx[tsx == 0] = np.nan
     vstack = np.hstack((np.reshape(tsx, (-1, 1)), np.reshape(slp_norm, (-1, 1))))
     return vstack
-
 
 def s2_inf_stack_builder(product, tmpdir):
 
@@ -316,23 +324,27 @@ def s2_inf_stack_builder(product, tmpdir):
     """
 
     # MNDWI and NDVI file loading:
-    ds_mndwi = gdal_warp(product.get_synthetic_band("mndwi", wdir=tmpdir), tr="20 20", r="cubic")
-    ds_ndvi = gdal_warp(product.get_synthetic_band("ndvi", wdir=tmpdir), tr="20 20", r="cubic")
+    ds_mndwi = gdal_warp(product.get_synthetic_band("mndwi", wdir=tmpdir), tr="10 10", r="cubic")
+    ds_ndvi = gdal_warp(product.get_synthetic_band("ndvi", wdir=tmpdir), tr="10 10", r="cubic")
     mndwi = ds_mndwi.array
     ndvi = ds_ndvi.array
 
     mndwi = mndwi / 5000
     ndvi = ndvi / 5000
 
-    bands = [product.find_file(pattern=r"\w+%s\w+.jp2$" % b, depth=5)[0] for b in s2_bands]
-    ds_bands = [gdal_warp(f, tr="20 20", r="cubic").array for f in bands]
+    #bands = [product.find_file(pattern=r"\w+%s\w+.jp2$" % b, depth=5)[0] for b in s2_bands]
+    #ds_bands = [gdal_warp(f, tr="20 20", r="cubic").array for f in bands]
     # Apply cloud/cloud-shadow/snow layer:
-    ds_bands_flat = np.moveaxis(np.array([np.reshape(b, (-1, 1))[..., 0] for b in ds_bands]), 0, -1)
+    #ds_bands_flat = np.moveaxis(np.array([np.reshape(b, (-1, 1))[..., 0] for b in ds_bands]), 0, -1)
     mndwi[mndwi == -2] = np.nan
     ndvi[ndvi == -2] = np.nan
 
-    vstack_add = np.hstack((np.reshape(mndwi, (-1, 1)), np.reshape(ndvi, (-1, 1))))
-    vstack_s2 = np.concatenate((vstack_add, ds_bands_flat), axis=-1)
+    vstack_add = np.hstack((np.reshape(ndvi, (-1, 1)), np.reshape(mndwi, (-1, 1))))
+    print(np.size(vstack_add,0), np.size(vstack_add,1))
+
+    #vstack_s2 = np.concatenate((vstack_add, ds_bands_flat), axis=-1)
+    #print(np.size(vstack_s2,0), np.size(vstack_s2,1))
+    vstack_s2 = vstack_add
     gc.collect()
     return vstack_s2
 
@@ -340,8 +352,8 @@ def postreatment(inmat, radius=2):
     """
     Post-treatment to be applied to the output of the raw inference.
 
-    :param product:  Sentinel-2 L2A product
-    :param tmpdir: Temporary working directory to write synthetic bands to.
+    :param inmat:  numpy array of the raw inference
+    :param radius: radius of the majority filter to be applied. Default is 2
     :return: Stack array for inference
     """
 

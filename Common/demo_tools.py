@@ -24,6 +24,7 @@ from Common.ImageIO import transform_point
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from random_forest.common import RDF_tools
 
+
 def draw_scale_bar(ax, central_lat, central_lon, length=20, unit="km"):
     """
     Draw a scale bar on the given ax-handle with fixed length
@@ -119,7 +120,7 @@ def draw_data_source(ax4, **kwargs):
     elif source=='tsx': dispsat='TerraSAR-X/TanDEM-X'
     else: dispsat='Unknown source'
 
-    if source=='s1' or 'tsx':
+    if source==('s1' or 'tsx'):
         table_vals = [['Map Projection', str(proj)],
                   ['Data source', str(dispsat)],
                   ['Relative orbit', str(orbit)],
@@ -200,12 +201,8 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
     extent_str = ds_in.extent(dtype=str)
 
     #  Permanent water mask
-    #gswo_name = os.path.join(gswo_dir, "%s.tif" % tile)
-
-
     gswo_projected = RDF_tools.gsw_cutter(tmp_dir, epsg, extent_str, gsw_files, res=[gt[1], gt[-1]])
-    #gswo_projected = gdal_warp(gswo_name, t_srs="EPSG:%s" % epsg, te=extent_str, tr="%s %s" % (gt[1], gt[-1]),
-    #                           r="near")
+
 
     #  Display the data
     fig = plt.figure(figsize=(11.69, 8.27))  # A4 in inches
@@ -254,7 +251,6 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
     # Flooded area display (in red), permanent water in blue
     masked_data = np.ma.masked_where(data != 1, data)
     masked_gsw = np.ma.masked_where(gswo_projected.array < 50, gswo_projected.array)
-    #masked_gsw = np.ma.masked_where(gswo_projected.array == 255, masked_gsw)
     masked_gsw = np.ma.masked_where(data > 1, masked_gsw)
 
     cmap2 = matplotlib.colors.ListedColormap(["#222E50"], name='from_list', N=None)  # Color for perma areas
@@ -267,16 +263,16 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
                      alpha=1, interpolation="nearest")
     img.set_zorder(3)
 
-    if sat == "S2":
+    if sat == "s2":
         masked_cld_shadow = np.ma.masked_where(data != 2, data)
-        cmap3 = matplotlib.colors.ListedColormap(["#439A86"], name='from_list', N=None)  # Color for perma areas
+        cmap3 = matplotlib.colors.ListedColormap(["#439A86"], name='from_list', N=None)  # Color for cloud shadow
         img3 = ax1.imshow(masked_cld_shadow, extent=extent, transform=ccrs.epsg(projcs), origin='upper',
                           cmap=plt.get_cmap(cmap3),
                           alpha=.7, interpolation="nearest")
         img3.set_zorder(3)
 
         masked_cld = np.ma.masked_where(data != 3, data)
-        cmap4 = matplotlib.colors.ListedColormap(["#E9D985"], name='from_list', N=None)  # Color for perma areas
+        cmap4 = matplotlib.colors.ListedColormap(["#E9D985"], name='from_list', N=None)  # Color for cloud
         img4 = ax1.imshow(masked_cld, extent=extent, transform=ccrs.epsg(projcs), origin='upper',
                           cmap=plt.get_cmap(cmap4),
                           alpha=.7, interpolation="nearest")
@@ -320,7 +316,6 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
     draw_legend(ax3, sat=sat)
 
     # AX4 - Data information
-    print("First post:",post)
     draw_data_source(ax4, projection="EPSG:%s" % ds_in.epsg, sat=sat, orbit=orbit, date=date,
                      pol=pol, post=post, rad=rad)
 

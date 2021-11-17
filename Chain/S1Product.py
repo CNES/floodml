@@ -37,9 +37,11 @@ class Sentinel1Tiled(MajaProduct):
         super(Sentinel1Tiled, self).__init__(filepath, **kwargs)
         self.fpath = os.path.dirname(filepath)
         reg_vh = r"^%s$" % self.base.replace("_vv_", "_vh_")
+        self.polarisations = "VV,VH"
         self._vh = self.find_file(pattern=reg_vh)[0]
         self._vv = filepath
         self.base = os.path.splitext(self.base)[0]
+        self.orbit = os.path.splitext(self.base)[0].split("_")[4]
 
     @property
     def platform(self):

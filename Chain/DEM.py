@@ -56,7 +56,10 @@ def get_gswo_codes(gswdir, ul, lr):
             code_lon = "E" if x >= 0 else "W"
             gswfile = os.path.join(gswdir,
                                    "occurrence_%d%s_%d%s.tif" % ( abs(x),code_lon, abs(y), code_lat))
-            assert os.path.isfile(gswfile), "Cannot find GSWO file: %s" % gswfile
-            gsw_files.append(gswfile)
+            # assert os.path.isfile(gswfile), "Cannot find GSWO file: %s" % gswfile
+            if not os.path.isfile(gswfile):
+                print("Cannot find GSWO file: %s" % gswfile)
+            else:
+                gsw_files.append(gswfile)
     return gsw_files
 

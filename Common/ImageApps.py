@@ -35,15 +35,14 @@ def get_ndsi(red, swir, vrange=(-1, 1), dtype=np.float32):
 
     if swir.resolution != red.resolution:
         # Resize to swir resolution in this case.
-        tr = " ".join([str(i) for i in swir.resolution])
-        ds_red = ImageTools.gdal_translate(red, tr=tr, r="cubic")
+        tr = " ".join([str(i) for i in red.resolution])
+        ds_swir = ImageTools.gdal_translate(swir, tr=tr, r="cubic")
     else:
-        ds_red = red
+        ds_swir = swir
 
     # TODO Add new test
-    img_red = np.array(ds_red.array, dtype=np.float32)
-    img_swir = np.array(swir.array, dtype=np.float32)
-
+    img_red = np.array(red.array, dtype=np.float32)
+    img_swir = np.array(ds_swir.array, dtype=np.float32)
     # Compensate for nan:
     img_ndsi = np.where((img_red + img_swir) != 0, (img_red - img_swir) / (img_red + img_swir), -1)
 
@@ -51,7 +50,7 @@ def get_ndsi(red, swir, vrange=(-1, 1), dtype=np.float32):
     img_ndsi_scaled = ImageTools.normalize(img_ndsi, value_range_out=vrange, value_range_in=(-1, 1),
                                            dtype=dtype, clip=True)
 
-    return GDalDatasetWrapper(ds=swir.get_ds(), array=img_ndsi_scaled)
+    return GDalDatasetWrapper(ds=red.get_ds(), array=img_ndsi_scaled)
 
 
 def get_ndvi(red, nir, vrange=(-1, 1), dtype=np.float32):
@@ -86,7 +85,7 @@ def get_ndvi(red, nir, vrange=(-1, 1), dtype=np.float32):
     img_nir = np.array(nir.array, dtype=np.float32)
 
     # Compensate for nan:
-    img_ndvi = np.where((img_red + img_nir) != 0, (img_red - img_nir) / (img_red + img_nir), -1)
+    img_ndvi = np.where((img_red + img_nir) != 0, (img_nir - img_red ) / (img_nir + img_red), -1)
 
     # Scale to vrange
     img_ndvi_scaled = ImageTools.normalize(img_ndvi, value_range_out=vrange, value_range_in=(-1, 1),
