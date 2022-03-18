@@ -11,11 +11,14 @@ Project:        FloodML, CNES
 
 import re
 import os
+import numpy as np
 from datetime import datetime, timedelta
 from Chain.Product import MajaProduct
 from Common.FileSystem import symlink
 from prepare_mnt.mnt.SiteInfo import Site
+from Common import ImageIO, FileSystem, ImageTools, XMLTools, ImageApps
 from Common import FileSystem, XMLTools
+from Common.GDalDatasetWrapper import GDalDatasetWrapper
 
 
 class Landsat8Natif(MajaProduct):
@@ -311,4 +314,34 @@ class Landsat8LC2(MajaProduct):
                 "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
-        raise NotImplementedError
+        output_folder = kwargs.get("wdir", os.path.join(self.fpath, "index"))
+        output_bname = "_".join([self.base.split(".")[0], synthetic_band.upper() + ".tif"])
+        output_filename = kwargs.get("output_filename", os.path.join(output_folder, output_bname))
+        print(output_filename)
+        max_value = kwargs.get("max_value", 5000)
+        # Skip existing:
+        if os.path.exists(output_filename):
+            return output_filename
+        if synthetic_band.lower() == "ndvi":
+            FileSystem.create_directory(output_folder)
+            b4 = self.find_file(pattern=r"*B4.TIF", depth=5)[0]
+            b5 = self.find_file(pattern=r"*B5.TIF", depth=5)[0]
+            ds_red  = GDalDatasetWrapper.from_file(b4)
+            ds_nir  = GDalDatasetWrapper.from_file(b5)
+            ds_red.array = np.multiply(ds_red.array, 2.75e-5)-0.2 # rescaling
+            ds_nir.array = np.multiply(ds_nir.array, 2.75e-5)-0.2 # rescaling
+            ds_ndvi = ImageApps.get_ndvi(ds_red, ds_nir, vrange=(-max_value, max_value), dtype=np.int16)
+            ds_ndvi.write(output_filename, options=["COMPRESS=DEFLATE"])
+        elif synthetic_band.lower() == "mndwi":
+            FileSystem.create_directory(output_folder)
+            b3 = self.find_file(pattern=r"*B3.TIF", depth=5)[0]
+            b6 = self.find_file(pattern=r"*B6.TIF", depth=5)[0]
+            ds_green = GDalDatasetWrapper.from_file(b3)
+            ds_swir = GDalDatasetWrapper.from_file(b6)
+            ds_green.array = np.multiply(ds_green.array, 2.75e-5)-0.2 # rescaling
+            ds_swir.array = np.multiply(ds_swir.array, 2.75e-5)-0.2 # rescaling
+            ds_ndsi = ImageApps.get_ndsi(ds_green, ds_swir, vrange=(-max_value, max_value), dtype=np.int16)
+            ds_ndsi.write(output_filename, options=["COMPRESS=DEFLATE"])
+        else:
+            raise ValueError("Unknown synthetic band %s" % synthetic_band)
+        return output_filename

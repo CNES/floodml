@@ -109,6 +109,7 @@ def s1_prep_stack_builder(s1_vv, slp_norm, idx_reject_gswo, idx_reject_slp, mask
                     
     return vstack_s1, rdn_stack
 
+
 def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask_rdn, vstack_s2, rdn_stack):
     """
     S2 parsing and processing (MNDWI & NDVI) with GSWO (water proof)
@@ -199,6 +200,7 @@ def s2_prep_stack_builder(s2files, idx_reject_gswo,  mask_gswo, imask_roi, imask
 
     return vstack_s2, rdn_stack
 
+
 def slope_creator(tmpdir, epsg, extent_str, topo_names, res=10):
     """
     :param tmpdir: temporary folder
@@ -236,6 +238,7 @@ def slope_creator(tmpdir, epsg, extent_str, topo_names, res=10):
     #ds_final.write(nexout, options=["COMPRESS=LZW"], nodata=255)
     return slp_norm, idx_reject_slp
 
+
 def gsw_cutter(tmpdir, epsg, extent_str, gsw_filesnames, res=10):
     """
     :param tmpdir: temporary folder
@@ -257,6 +260,7 @@ def gsw_cutter(tmpdir, epsg, extent_str, gsw_filesnames, res=10):
                          te=extent_str, r="bilinear", ot="Float32")
     return ds_final
 
+
 def lee_filter(img, size):
     """
     :param img: Image array to be filtered
@@ -272,6 +276,7 @@ def lee_filter(img, size):
     img_weights = img_variance / (img_variance + overall_variance)
     img_output = img_mean + img_weights * (img - img_mean)
     return img_output
+
 
 def s1_inf_stack_builder(filename, slp_norm):
     """
@@ -296,6 +301,7 @@ def s1_inf_stack_builder(filename, slp_norm):
     vstack = np.hstack((stacked, np.reshape(slp_norm, (-1, 1))))
     return vstack
 
+
 def tsx_inf_stack_builder(filename, slp_norm, C=2500):
     """
     Stack builder for Sentinel-1 files for inference purposes
@@ -312,6 +318,7 @@ def tsx_inf_stack_builder(filename, slp_norm, C=2500):
     tsx[tsx == 0] = np.nan
     vstack = np.hstack((np.reshape(tsx, (-1, 1)), np.reshape(slp_norm, (-1, 1))))
     return vstack
+
 
 def s2_inf_stack_builder(product, tmpdir):
 
@@ -340,13 +347,49 @@ def s2_inf_stack_builder(product, tmpdir):
     ndvi[ndvi == -2] = np.nan
 
     vstack_add = np.hstack((np.reshape(ndvi, (-1, 1)), np.reshape(mndwi, (-1, 1))))
-    print(np.size(vstack_add,0), np.size(vstack_add,1))
 
     #vstack_s2 = np.concatenate((vstack_add, ds_bands_flat), axis=-1)
     #print(np.size(vstack_s2,0), np.size(vstack_s2,1))
     vstack_s2 = vstack_add
     gc.collect()
     return vstack_s2
+
+
+def l8_inf_stack_builder(product, tmpdir):
+
+    """
+    Stack builder for Landsat8 files for inference purposes
+
+    :param product:  Landsat8 L2SP product
+    :param tmpdir: Temporary working directory to write synthetic bands to.
+    :return: Stack array for inference
+    """
+
+    # MNDWI and NDVI file loading:
+    ds_mndwi = gdal_warp(product.get_synthetic_band("mndwi", wdir=tmpdir), tr="30 30", r="cubic")
+    ds_ndvi = gdal_warp(product.get_synthetic_band("ndvi", wdir=tmpdir), tr="30 30", r="cubic")
+
+    mndwi = ds_mndwi.array
+    ndvi = ds_ndvi.array
+
+    mndwi = mndwi / 5000
+    ndvi = ndvi / 5000
+
+    #bands = [product.find_file(pattern=r"\w+%s\w+.jp2$" % b, depth=5)[0] for b in s2_bands]
+    #ds_bands = [gdal_warp(f, tr="20 20", r="cubic").array for f in bands]
+    # Apply cloud/cloud-shadow/snow layer:
+    #ds_bands_flat = np.moveaxis(np.array([np.reshape(b, (-1, 1))[..., 0] for b in ds_bands]), 0, -1)
+    mndwi[mndwi == -2] = np.nan
+    ndvi[ndvi == -2] = np.nan
+
+    vstack_add = np.hstack((np.reshape(ndvi, (-1, 1)), np.reshape(mndwi, (-1, 1))))
+
+    #vstack_s2 = np.concatenate((vstack_add, ds_bands_flat), axis=-1)
+    #print(np.size(vstack_s2,0), np.size(vstack_s2,1))
+    vstack_l8 = vstack_add
+    gc.collect()
+    return vstack_l8
+
 
 def postreatment(inmat, radius=2):
     """

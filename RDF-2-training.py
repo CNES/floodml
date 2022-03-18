@@ -102,6 +102,11 @@ def main_training(args):
 
     rdf = RandomForestClassifier(**parameters)
     rdf.fit(x_train, y_train)
+
+    # Export cuML RF model as Treelite checkpoint for CPU computing
+    checkpoint_path = os.path.join(db_output, "DB_S%s_CPU_%s.sav" % (sat, outag)) 
+    rdf.convert_to_treelite_model().to_treelite_checkpoint(checkpoint_path)
+
     rdf_pred = rdf.predict(x_test)
     rdf_score = accuracy_score(rdf_pred, y_test)
     print("Accuracy: {:.5f}".format(rdf_score))

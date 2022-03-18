@@ -17,6 +17,7 @@ import cartopy.io.img_tiles as cimgt
 import matplotlib
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as patches
+from datetime import datetime
 from cartopy.mpl.gridliner import LONGITUDE_FORMATTER, LATITUDE_FORMATTER
 from PIL import Image
 from Common.ImageTools import gdal_warp
@@ -62,7 +63,7 @@ def draw_legend(ax3, sat):
     ax3.set_title("Legend", loc="left")
     ax3.set_xlim(0, 1)
     ax3.set_ylim(0, 1)
-    if sat == 's2':
+    if sat in ['s2', 'l8']:
         flood_sq = patches.Rectangle((0, .8), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#AA0000', alpha=1)
         gsw_sq = patches.Rectangle((0., .6), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#222E50', alpha=1)
         cldsh_sq = patches.Rectangle((0., .4), .1, 0.1, linewidth=0, edgecolor='black', facecolor='#439A86', alpha=1)
@@ -117,27 +118,33 @@ def draw_data_source(ax4, **kwargs):
 
     if source=='s1': dispsat='Sentinel-1'
     elif source=='s2': dispsat='Sentinel-2'
+    elif source=='l8': dispsat='Landsat-8'
     elif source=='tsx': dispsat='TerraSAR-X/TanDEM-X'
     else: dispsat='Unknown source'
 
-    if source==('s1' or 'tsx'):
+    if source in ['s1','tsx']:
         table_vals = [['Map Projection', str(proj)],
                   ['Data source', str(dispsat)],
                   ['Relative orbit', str(orbit)],
                   ['Acq. date (UTC)', str(date)],
-                  ['Polarization', str(pol)]]
-    elif source=='s2':
+                  ['Polarization', str(pol)],
+                  ['Map production date', str(datetime.now())]]            
+    elif source in ['s2', 'l8']:
         table_vals = [['Map Projection', str(proj)],
                   ['Data source', str(dispsat)],
                   ['Relative orbit', str(orbit)],
-                  ['Acq. date (UTC)', str(date)]]
-
-    if post==1:
-        table_vals = np.vstack((table_vals, ['Post-processing', 'Majority filter r=%s' % rad]))
+                  ['Acq. date (UTC)', str(date)],
+                  ['Map production date', str(datetime.now())]]
 
     n_lines = len(table_vals)
-    line_width = .2
-    t = ax4.table(cellText=table_vals, loc='top left', cellLoc='left',
+    if post==1:
+        table_vals = np.vstack((table_vals, ['Post-processing', 'Majority filter r=%s' % rad]))
+        n_lines+=1
+
+    
+    # line_width = .2
+    line_width = 1/n_lines # line relative thickness
+    t = ax4.table(cellText=table_vals, cellLoc='left',
                   bbox=[0., 1 - n_lines * line_width, 1, n_lines * line_width])
 
 
@@ -263,7 +270,7 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
                      alpha=1, interpolation="nearest")
     img.set_zorder(3)
 
-    if sat == "s2":
+    if sat in ["s2","l8"]:
         masked_cld_shadow = np.ma.masked_where(data != 2, data)
         cmap3 = matplotlib.colors.ListedColormap(["#439A86"], name='from_list', N=None)  # Color for cloud shadow
         img3 = ax1.imshow(masked_cld_shadow, extent=extent, transform=ccrs.epsg(projcs), origin='upper',
@@ -314,7 +321,7 @@ def static_display(infile, tmp_dir, gsw_files, date, pol, outfile, orbit, sat, b
 
     # AX3 - Legend
     draw_legend(ax3, sat=sat)
-
+    
     # AX4 - Data information
     draw_data_source(ax4, projection="EPSG:%s" % ds_in.epsg, sat=sat, orbit=orbit, date=date,
                      pol=pol, post=post, rad=rad)

@@ -109,10 +109,6 @@ def main_preparation(args):
                     topo_names = [os.path.join(merit_dir, tile + ".tif")]
 
                 print("\t\t DEM files:  ", topo_names)
-                print(tmp_dir)
-                print(epsg)
-                print(extent_str)
-                print(topo_names)
                 slp_norm, idx_reject_slp = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names)
 
                 # Water proof areas (where water occurrence >90% and slopes <10°)
