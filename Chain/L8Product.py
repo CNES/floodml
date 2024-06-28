@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
 Project:        FloodML, CNES
 """
+
 
 
 import re
@@ -15,7 +16,6 @@ import numpy as np
 from datetime import datetime, timedelta
 from Chain.Product import MajaProduct
 from Common.FileSystem import symlink
-from prepare_mnt.mnt.SiteInfo import Site
 from Common import ImageIO, FileSystem, ImageTools, XMLTools, ImageApps
 from Common import FileSystem, XMLTools
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
@@ -78,19 +78,6 @@ class Landsat8Natif(MajaProduct):
         str_date = self.base.split(".")[0].split("_")[-1]
         # Add a timedelta of 12hrs in order to compensate for the missing H/M/S:
         return datetime.strptime(str_date, "%Y%m%d") + timedelta(hours=12)
-
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = self.find_file(r"*_B0?1*.tif")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "XS",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
@@ -165,19 +152,6 @@ class Landsat8Muscate(MajaProduct):
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
 
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = self.find_file(r"*_B0?1*.tif")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "XS",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
-
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
 
@@ -233,19 +207,6 @@ class Landsat8LC1(MajaProduct):
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
 
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = self.find_file(r"*_B0?1*.tif")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "XS",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
-
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
 
@@ -299,19 +260,6 @@ class Landsat8LC2(MajaProduct):
 
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
-
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = self.find_file(r"*_B0?1*.tif")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "XS",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         output_folder = kwargs.get("wdir", os.path.join(self.fpath, "index"))
