@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
@@ -9,17 +9,18 @@ Project:        FloodML, CNES
 """
 
 
+
 import os
 import glob
 import numpy as np
 import argparse
-from random_forest.common import RDF_tools
 import tempfile
+from Common import RDF_tools
 from Common import FileSystem
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageTools import gdal_warp
 from Common.ImageIO import transform_point
-from Chain.DEM import get_copdem_codes
+from Common.Mosaicist import get_copdem_codes
 
 
 def main_preparation(args):
@@ -115,7 +116,7 @@ def main_preparation(args):
                 imask_roi = np.ravel(np.flatnonzero(mask_gswo > 0))
 
                 # S1 related file listing
-                s1_vv = glob.glob(os.path.join(emsr_path, tile, "**/*" "*vv*.tif"), recursive=True)
+                s1_vv = glob.glob(os.path.join(emsr_path, tile, "**/*", "*vv*.tif"), recursive=True)
                 print("\n\t** ", len(s1_vv), "S1 files to consider")
 
                 # S1 parsing and processing (VV & VH)
