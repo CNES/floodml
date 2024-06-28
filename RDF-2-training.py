@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
@@ -14,7 +14,7 @@ import gc
 import numpy as np
 import joblib
 import argparse
-from deep_learning.Validation.validationTools import calculate_fscore_2
+from Common.validationTools import calculate_fscore_2
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import accuracy_score
 
@@ -75,8 +75,6 @@ def main_training(args):
 
         all_gt.append(data_vt)
         all_train.append(data_rdn)
-
-        continue
 
     gt_concat = np.concatenate(all_gt, axis=0)
     train_concat = np.concatenate(all_train, axis=0)
