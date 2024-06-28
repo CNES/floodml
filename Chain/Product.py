@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
@@ -15,7 +15,6 @@ import shutil
 import tempfile
 from Common import ImageTools
 from Common.FileSystem import find
-from prepare_mnt.mnt.MNTFactory import MNTFactory
 from Common import FileSystem
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 
@@ -57,6 +56,7 @@ class MajaProduct(object):
         """
         from Chain.S2Product import Sentinel2SSC, Sentinel2Muscate, Sentinel2Natif
         from Chain.L8Product import Landsat8LC1, Landsat8LC2, Landsat8Muscate, Landsat8Natif
+        from Chain.L9Product import Landsat9LC1, Landsat9LC2, Landsat9Muscate, Landsat9Natif
         from Chain.VSProduct import VenusNatif, VenusMuscate
         from Chain.SpotProduct import Spot4Muscate, Spot5Muscate
         from Chain.PleiadesProduct import PleiadesTheiaXS, PleiadesPreprojected
@@ -73,7 +73,12 @@ class MajaProduct(object):
         reg_l8_lc2 = r"^LC08_L\w+$"
         reg_l8_mus = r"^LANDSAT8(-OLITIRS|-OLI-TIRS|-OLITIRS-XSTHPAN)?" \
                      r"_(\d{8})-\d{6}-\d{3}_L(1C|2A)_T?\w+_[DC]_V\d*-\d*$"
-        reg_l8_nat = r"^L8_\w{4}_L8C_L[12]VALD_[\d_]+.DBL.DIR$"
+        reg_l8_nat = r"^L9_\w{4}_L9C_L[12]VALD_[\d_]+.DBL.DIR$"
+        reg_l9_lc1 = r"^LC9\w+$"
+        reg_l9_lc2 = r"^LC09_L\w+$"
+        reg_l9_mus = r"^LANDSAT9(-OLITIRS|-OLI-TIRS|-OLITIRS-XSTHPAN)?" \
+                     r"_(\d{8})-\d{6}-\d{3}_L(1C|2A)_T?\w+_[DC]_V\d*-\d*$"
+        reg_l9_nat = r"^L9_\w{4}_L9C_L[12]VALD_[\d_]+.DBL.DIR$"
         reg_vs_mus = r"^VENUS(-XS)?_\d{8}-\d{6}-\d{3}_L(1C|2A|3A)_\w+_[DC]_V\d*-\d*$"
         reg_vs_nat = r"^VE_\w{4}_VSC_L[12]VALD_\w+.DBL.DIR$"
         reg_s5_mus = r"^SPOT5-HR\w+-XS_(\d{8})-\d{6}-\d{3}_L(1C|2A)_[\w-]+_[DC]_V\d*-\d*$"
@@ -101,6 +106,15 @@ class MajaProduct(object):
             return Landsat8LC1(fpath, **kwargs)
         if re.search(reg_l8_lc2, base):
             return Landsat8LC2(fpath, **kwargs)
+        # Landsat-9
+        if re.search(reg_l9_nat, base):
+            return Landsat9Natif(fpath, **kwargs)
+        if re.search(reg_l9_mus, base):
+            return Landsat9Muscate(fpath, **kwargs)
+        if re.search(reg_l9_lc1, base):
+            return Landsat9LC1(fpath, **kwargs)
+        if re.search(reg_l9_lc2, base):
+            return Landsat9LC2(fpath, **kwargs)
         # Venus
         if re.search(reg_vs_mus, base):
             return VenusMuscate(fpath, **kwargs)
@@ -145,6 +159,7 @@ class MajaProduct(object):
         ptype = self.type
         types = {"sentinel2": {"natif": "SENTINEL-2_", "muscate": "SENTINEL2_", "ssc": "SENTINEL-2_"},
                  "landsat8": {"lc1": "LANDSAT_8", "lc2": "LANDSAT_8", "muscate": "LANDSAT8"},
+                 "landsat9": {"lc1": "LANDSAT_9", "lc2": "LANDSAT_9", "muscate": "LANDSAT9"},
                  "venus": {"natif": "VENuS", "muscate": "VENUS"},
                  "spot5": {"muscate": "SPOT5"},
                  "spot4": {"muscate": "SPOT4"},
@@ -199,6 +214,7 @@ class MajaProduct(object):
     def platform_str(self):
         platform_choices = {"sentinel2": "S2_",
                             "landsat8": "L8",
+                            "landsat9": "L9",
                             "venus": "VE",
                             "spot5": "SPOT5",
                             "spot4": "SPOT4",
@@ -207,24 +223,15 @@ class MajaProduct(object):
 
         return platform_choices[self.platform]
 
-    def get_mnt(self, **kwargs):
-        try:
-            coarse_res = kwargs.pop("coarse_res")
-        except KeyError:
-            coarse_res = self.coarse_resolution
-        return MNTFactory(site=self.mnt_site, platform_id=self.platform_str,
-                          mission_field=self.type_xml_maja, mnt_resolutions=self.mnt_resolutions_dict,
-                          coarse_res=coarse_res, **kwargs).factory()
-
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
 
     def _reproject_to_epsg(self, img, outpath, epsg):
-        tmpfile = tempfile.mktemp(prefix="reproject_", suffix=".tif")
+        tmpfile = tempfile.TemporaryFile(prefix="reproject_", suffix=".tif")
         ImageTools.gdal_warp(tmpfile, img, t_srs="EPSG:%s" % epsg,
                              tr=" ".join(map(str, self.base_resolution)),
                              q=True)
-        shutil.move(tmpfile, outpath)
+        shutil.move(img, outpath)
 
     def reproject(self, **kwargs):
         out_dir = kwargs.get("out_dir", self.fpath)
