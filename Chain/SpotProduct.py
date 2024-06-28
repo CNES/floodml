@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
 Project:        FloodML, CNES
 """
+
 
 
 import os
@@ -15,7 +16,6 @@ from datetime import datetime
 import numpy as np
 from Chain.Product import MajaProduct
 from Common.FileSystem import symlink
-from prepare_mnt.mnt.SiteInfo import Site
 from Common import FileSystem, ImageApps
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 
@@ -76,18 +76,6 @@ class Spot5Muscate(MajaProduct):
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
 
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = self.find_file(r"*_XS1*.tif")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "XS",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         wdir = kwargs.get("wdir", self.fpath)
@@ -175,18 +163,6 @@ class Spot4Muscate(MajaProduct):
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
 
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = self.find_file(r"*_XS1*.tif")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "XS",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
