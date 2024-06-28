@@ -26,18 +26,4 @@ RUN /opt/conda/envs/rapids/bin/pip install cartopy
 
 COPY . /rapids
 
-###
-ARG UID=11390
-ARG GID=10071
-
-# Set environment variables
-ENV USER_NAME=cfatras
-ENV HOME_DIR=/home/${USER_NAME}
-
-# Create a new user and group with the specified UID and GID
-RUN groupadd -g ${GID} ${USER_NAME} && \
-    useradd -m -d ${HOME_DIR} -u ${UID} -g ${GID} -s /bin/bash ${USER_NAME}
-
-USER ${USER_NAME}
-
 ENTRYPOINT ["/opt/conda/envs/rapids/bin/python", "RDF-3-inference.py"]
