@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
 Project:        FloodML, CNES
 """
 
+
 import os
 from datetime import datetime
 from Chain.Product import MajaProduct
 from Common.FileSystem import symlink
-from prepare_mnt.mnt.SiteInfo import Site
 from Common import XMLTools
 
 
@@ -93,14 +93,6 @@ class TerraSarXRadiometricallyEnhanced(MajaProduct):
         for f in self._polarisations:
             symlink(f, os.path.join(link_dir, os.path.basename(f)))
 
-    @property
-    def mnt_site(self):
-        return Site.from_raster(self.base, self._polarisations[0])
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "R1",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
