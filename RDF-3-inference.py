@@ -1,30 +1,30 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
 Project:        FloodML, CNES
 """
 
+
 import os
 import joblib
 import numpy as np
 from datetime import datetime
 import argparse
-from random_forest.common import RDF_tools
 import tempfile
-import progressbar
-import Common.demo_tools as dtool
+import Common.Rapid_mapper as rapid_mapper
+from Common import RDF_tools
 from Common import FileSystem
-from deep_learning.Imagery.Dataset import Dataset
+from Common.Imagery.Dataset import Dataset
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.ImageIO import transform_point
 from Common.ImageTools import gdal_warp, gdal_buildvrt
-from Chain.DEM import get_copdem_codes
-from Chain.DEM import get_gswo_codes
-
+from Common.Mosaicist import get_copdem_codes
+from Common.Mosaicist import get_gswo_codes
+from Common.Mosaicist import get_esawc_codes
 
 def main_inference(args):
 
@@ -35,14 +35,14 @@ def main_inference(args):
     sat = args.satellite
     db_path = args.db_path
     gsw_dir = args.gsw
-    post = args.post
     rad = args.rad
-
-    products = list(sorted(Dataset.get_available_products(root=input_folder, platforms=[sat])))
-
+    wc_dir = args.wc_dir
     tmp_in = args.tmp_dir
-    FileSystem.create_directory(tmp_in)  # Create if not existing
 
+    products = list(sorted(Dataset.get_available_products(root=input_folder, 
+                                                          platforms=[sat])))
+
+    print('Temporary directory: {}'.format(tmp_in))
     print("Number of products found:", len(products))
 
     if not products:
@@ -52,19 +52,18 @@ def main_inference(args):
     # Initialise extent file
     FileSystem.create_directory(dir_output)
 
-
     # Select DEM based on provided paths
     dem_choice = "copernicus" if copdem_dir else "merit"
-
-    extent_out = os.path.join(dir_output, "extents_%s_%s_0.csv" % (products[0].date.strftime("%Y%m%d"),
-                                                                   products[-1].date.strftime("%Y%m%d")))
 
     # Main loop
     for prod in products:
 
         # TMP folder
         print(prod)
+        FileSystem.create_directory(tmp_in)  # Create if not existing
         tmp_dir = tempfile.mkdtemp(dir=tmp_in)
+        print('Temporary directory created:', tmp_dir)
+
 
         ## For each product determine the files to be processed
         filenames = []
@@ -77,7 +76,7 @@ def main_inference(args):
         elif sat == "tsx":
             for f in range(len(prod.files)):
                 filenames.append(os.path.join(input_folder, 'IMAGEDATA', prod.files[f]))
-        elif sat == "l8":
+        elif sat in ["l8", "l9"]:
             filenames.append(prod.find_file(pattern=r"*B2.TIF", depth=5)[0])
             polar=""
 
@@ -88,56 +87,153 @@ def main_inference(args):
                 orbit = prod.base.split("_")[4]
                 ds_in = GDalDatasetWrapper.from_file(filename)
                 epsg = str(ds_in.epsg)
+                extent = list(ds_in.extent(dtype=float))
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
                 extent_str = ds_in.extent(dtype=str)
+                res = ds_in.resolution
 
                 #Topography file for corresponding tile (S1 case)
                 if dem_choice == "copernicus":
-                    ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
-                    lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
-                    topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
+                    ul_latlon = transform_point(ds_in.ul_lr[:2], 
+                                                old_epsg=ds_in.epsg, 
+                                                new_epsg=4326)
+                    lr_latlon = transform_point(ds_in.ul_lr[-2:], 
+                                                old_epsg=ds_in.epsg,
+                                                new_epsg=4326)
+                    topo_names = get_copdem_codes(copdem_dir, 
+                                                  ul_latlon, 
+                                                  lr_latlon)
                 else:
                     topo_names = [os.path.join(merit_dir, prod.tile + ".tif")]
                 print("\tDEM file: %s" % topo_names)
-                slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names, res=[10, 10])
-                slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
+                slp_norm, _ = RDF_tools.slope_creator(tmp_dir, 
+                                                      epsg, 
+                                                      extent_str, 
+                                                      topo_names, 
+                                                      res=[10, 10])
+                # To avoid planar over detection (slp=0 and nodata values set to 0.01)
+                slp_norm[slp_norm <= 0] = 0.01  
                 v_stack = RDF_tools.s1_inf_stack_builder(filename, slp_norm)
                 background = None
+
+                #ESA world cover
+                if dem_choice!="copernicus":
+                    ul_latlon = transform_point(ds_in.ul_lr[:2], 
+                                                old_epsg=ds_in.epsg, 
+                                                new_epsg=4326)
+                    lr_latlon = transform_point(ds_in.ul_lr[-2:], 
+                                                old_epsg=ds_in.epsg, 
+                                                new_epsg=4326)
+                wc_files = get_esawc_codes(wc_dir, 
+                                           ul_latlon, 
+                                           lr_latlon)
 
             elif sat == "s2":  # Sentinel-2 case
                 ds_in = GDalDatasetWrapper.from_file(filename)
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
                 orbit = prod.rel_orbit.replace("R", "")
+                epsg = str(ds_in.epsg)
+                extent = list(ds_in.extent(dtype=float))
+                # extent_str = ds_in.extent(dtype=str)
+                res = ds_in.resolution
                 v_stack = RDF_tools.s2_inf_stack_builder(prod, tmp_dir)
                 background = prod.find_file(pattern=r"*TCI(_20m)?.jp2$", depth=5)[0]
+
+                #ESA world cover
+                ul_latlon = transform_point(ds_in.ul_lr[:2], 
+                                            old_epsg=ds_in.epsg, 
+                                            new_epsg=4326)
+                lr_latlon = transform_point(ds_in.ul_lr[-2:], 
+                                            old_epsg=ds_in.epsg, 
+                                            new_epsg=4326)
+                wc_files = get_esawc_codes(wc_dir, 
+                                           ul_latlon, 
+                                           lr_latlon)
             elif sat == "tsx":  # TSX
                 polar = filename.split('/')[-1].split('_')[1]
                 ds_in = GDalDatasetWrapper.from_file(filename)
                 epsg = str(ds_in.epsg)
+                extent = list(ds_in.extent(dtype=float))
                 orbit = prod.orbit
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
                 extent_str = ds_in.extent(dtype=str)
+                res = ds_in.resolution
+                basesplit = prod.base.replace('___','_').replace('__','_').split('_')
 
                 # Topography files for corresponding tile 
                 if dem_choice == "copernicus":
-                    ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
-                    lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
+                    ul_latlon = transform_point(ds_in.ul_lr[:2], 
+                                                old_epsg=ds_in.epsg, 
+                                                new_epsg=4326)
+                    lr_latlon = transform_point(ds_in.ul_lr[-2:], 
+                                                old_epsg=ds_in.epsg, 
+                                                new_epsg=4326)
                     topo_names = get_copdem_codes(copdem_dir, ul_latlon, lr_latlon)
                 else:
-                    topo_names = [os.path.join(merit_dir, tile + ".tif")] ##Issue to be solved
+                    ## NOT WORKING - Issue to be solved
+                    topo_names = [os.path.join(merit_dir, tile + ".tif")] 
                 print("\tDEM file: %s" % topo_names)
-                slp_norm, _ = RDF_tools.slope_creator(tmp_dir, epsg, extent_str, topo_names, prod.mnt_resolution)
-                slp_norm[slp_norm <= 0] = 0.01  # To avoid planar over detection (slp=0 and nodata values set to 0.01)
-                v_stack = RDF_tools.tsx_inf_stack_builder(filename, slp_norm, C=2500) #Calibration coefficient set manually here
+                slp_norm, _ = RDF_tools.slope_creator(tmp_dir, 
+                                                      epsg, 
+                                                      extent_str, 
+                                                      topo_names, 
+                                                      prod.mnt_resolution)
+                # To avoid planar over detection (slp=0 and nodata values set to 0.01)
+                slp_norm[slp_norm <= 0] = 0.01  
+                #Calibration coefficient set manually here
+                v_stack = RDF_tools.tsx_inf_stack_builder(filename, 
+                                                          slp_norm, 
+                                                          C=2500) 
                 background = None
-            elif sat == "l8":  # Landsat-8 case
+                
+                #ESA world cover
+                ul_latlon = transform_point(ds_in.ul_lr[:2], 
+                                            old_epsg=ds_in.epsg, 
+                                            new_epsg=4326)
+                lr_latlon = transform_point(ds_in.ul_lr[-2:], 
+                                            old_epsg=ds_in.epsg, 
+                                            new_epsg=4326)
+                wc_files = get_esawc_codes(wc_dir, 
+                                           ul_latlon, 
+                                           lr_latlon)
+            elif sat == "l8" or sat =="l9":  # Landsat-8/9 case
                 ds_in = GDalDatasetWrapper.from_file(filename)
+
+                epsg = str(ds_in.epsg)
+                extent = list(ds_in.extent(dtype=float))
                 date = prod.date.strftime("%Y%m%dT%H%M%S")
+                res = ds_in.resolution
                 orbit = ""
-                v_stack = RDF_tools.l8_inf_stack_builder(prod, tmp_dir)
+
+                if extent[1]<=0 or extent[3]<=0: # If we are in the southern hemisphere
+                    if epsg[2]=='6': # Turns northern hemisphere...
+                        epsg = epsg[0:2]+'7'+epsg[3:]# into southern hemisphere
+                    extent[1]+=10000000 # And extent corrected in latitude
+                    extent[3]+=10000000 # And extent corrected in latitude
+                    UL_LR = list(ds_in.ul_lr)
+                    UL_LR[1]+=10000000
+                    UL_LR[3]+=10000000
+                    UL_LR = tuple(UL_LR)
+
+                else:
+                    UL_LR = ds_in.ul_lr
+
+                v_stack = RDF_tools.ldt_inf_stack_builder(prod, tmp_dir)
                 background = None
+
+                #ESA world cover
+                if dem_choice!="copernicus":
+                    ul_latlon = transform_point(UL_LR[:2], 
+                                                old_epsg=int(epsg), 
+                                                new_epsg=4326)
+                    lr_latlon = transform_point(UL_LR[-2:], 
+                                                old_epsg=int(epsg), 
+                                                new_epsg=4326)
+                wc_files = get_esawc_codes(wc_dir, 
+                                           ul_latlon, 
+                                           lr_latlon)
             else:
-                raise ValueError("Unknown  Satellite. Has to be s1, s2, l8 or tsx.")
+                raise ValueError("Unknown  Satellite. Has to be s1, s2, l8, l9 or tsx.")
 
             n_divisions = 20
             windows = np.array_split(v_stack, n_divisions, axis=0)
@@ -146,14 +242,14 @@ def main_inference(args):
             # RANDOM FOREST
             print('\tLoading RDF model...')
             rdf = joblib.load(db_path)  # /path to be changed
-            for idx in progressbar.progressbar(range(len(windows))):
+            for idx in range(len(windows)):
                 # Remove NaN & predict
                 current = windows[idx]
                 current[np.isnan(current)] = 0
                 rdf_pred = rdf.predict(current)
                 predictions.append(rdf_pred)
 
-            # Output image
+            ### Inference Output image reconstruction
             ds_filename = GDalDatasetWrapper.from_file(filename)
             dim = ds_filename.array.shape[:2]
             vec_out = np.concatenate(predictions).reshape(dim[0], dim[1])
@@ -162,92 +258,146 @@ def main_inference(args):
             # Apply nodata
             exout[ds_in.array == 0] = 255
 
+            ## adding clouds and shadows
             if sat == "s2":
-                #Cloud detection using blue band
-                blue = prod.find_file(pattern=r"\w+B02_10m.jp2$", depth=5)[0]
-                blue_img = GDalDatasetWrapper.from_file(blue).array
-                ex_roof = blue_img >2500 # 1000?
-                exout[ex_roof] = 3
-
+                #Cloud detection using Sen2corSCL
                 scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
                 scl_img = gdal_warp(scl_path, tr="10 10", r="cubic").array
-                cld_shadow = scl_img == 3
-                exout[cld_shadow] = 2
-            elif sat == "l8":
+                exout[scl_img == 8] = 6 # Cloud
+                exout[scl_img == 9] = 6 # Cloud
+                exout[scl_img == 10] = 6 # Cloud
+
+                #Cloud shadow
+                scl_path = prod.find_file(pattern=r"\w+SCL_20m.jp2$", depth=5)[0]
+                scl_img = gdal_warp(scl_path, tr="10 10", r="cubic").array
+                exout[scl_img == 3] = 7 # Cloud shadow
+
+            elif sat == "l8" or sat == "l9":
                 #Cloud detection using blue band
                 blue = prod.find_file(pattern=r"\w+B2.TIF", depth=5)[0]
-                blue_img = np.multiply(GDalDatasetWrapper.from_file(blue).array, 2.75e-5)-0.2 #Landsat8 values
-                ex_roof = blue_img >0.1 
-                exout[ex_roof] = 3
+                #Landsat 8/9 values
+                blue_img = np.multiply(GDalDatasetWrapper.from_file(blue).array, 2.75e-5)-0.2 
+                cloud = blue_img >0.2 
+                exout[cloud] = 6
 
 
-            # Export
-            FileSystem.create_directory(os.path.join(dir_output, prod.base))
+            ### File export
+            if sat in ["s1", "s2", "l8", "l9"]: 
+                dirfile = "FloodMapping_{}_{}_{}_{}".format(
+                                                            prod.tile, 
+                                                            date, 
+                                                            sat.upper(), 
+                                                            orbit)
+            elif sat in ["tsx"]:
+                dirfile = "FloodMapping_{}_{}_{}_{}_{}".format(
+                                                            sat.upper(), 
+                                                            orbit, 
+                                                            polar, 
+                                                            basesplit[7], 
+                                                            basesplit[8])
+            FileSystem.create_directory(os.path.join(dir_output, dirfile))
 
-            # Export raw inference
-            if sat == "s1": 
-                nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.level.upper(), 
-                                                            prod.tile, date, orbit, 'RAW'))
-            elif sat == "s2":
-                nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s.tif' % (sat.upper(), orbit, date, 'RAW')) 
-            elif sat == "l8":
-                nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s.tif' % (sat.upper(), orbit, date, 'RAW')) 
-            elif sat == "tsx":
-                basesplit = prod.base.replace('___','_').replace('__','_').split('_')
-                nexout = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.type.upper(), 
-                                                            polar, basesplit[7], basesplit[8], orbit, 'RAW'))
+            #####
+            ### Export inference with post-processing
+            outpost = RDF_tools.postreatment(exout, radius=rad) #Post-processed inference
+            outpost[ds_in.array == 0]=255
+            if sat in ["s1", "s2", "l8", "l9"]: 
+                outifpost = os.path.join(dir_output, 
+                                         dirfile, 
+                                         'FM_{}_{}_{}_{}_POST.tif'.format(prod.tile, 
+                                                                          date, 
+                                                                          sat.upper(), 
+                                                                          orbit))
+            elif sat in ["tsx"]: 
+                outifpost = os.path.join(dir_output, 
+                                         dirfile, 
+                                         'FM_{}_{}_{}_{}_{}_{}_POST.tif'.format(sat.upper(), 
+                                                                                prod.type.upper(), 
+                                                                                polar, 
+                                                                                basesplit[7], 
+                                                                                basesplit[8], 
+                                                                                orbit))
 
-            ds_out = GDalDatasetWrapper(array=np.array(exout),
+            ds_out = GDalDatasetWrapper(array=np.array(outpost),
                                         projection=ds_filename.projection,
                                         geotransform=ds_filename.geotransform)
-            ds_out.write(nexout, options=["COMPRESS=LZW"], nodata=255) 
- 
-            # If post-treatment:
-            if post==1:
-                exout = RDF_tools.postreatment(exout, radius=rad)
-                postsuf = 'POST_MAJr%s' % str(rad).zfill(2)
-            
-                if sat == "s1": 
-                    nexoutpost = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.level.upper(), 
-                                                                prod.tile, date, orbit, postsuf))
-                elif sat == "s2":
-                    nexoutpost = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s.tif' % (sat.upper(), orbit, date, postsuf)) 
-                elif sat == "l8":
-                    nexoutpost = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s.tif' % (sat.upper(), orbit, date, postsuf)) 
-                elif sat == "tsx":
-                    basesplit = prod.base.replace('___','_').replace('__','_').split('_')
-                    nexoutpost = os.path.join(dir_output, prod.base, 'Inf_%s_%s_%s_%s_%s_%s_%s.tif' % (sat.upper(), prod.type.upper(), 
-                                                                polar, basesplit[7], basesplit[8], orbit, postsuf)) 
+            ds_out.write(outifpost, options=["COMPRESS=LZW"], nodata=255)
 
-                ds_out = GDalDatasetWrapper(array=np.array(exout),
-                                            projection=ds_filename.projection,
-                                            geotransform=ds_filename.geotransform)
-                ds_out.write(nexoutpost, options=["COMPRESS=LZW"], nodata=255)
-
-            #### Rapid mapping map creation
+            #####
+            ### Rapid mapping map creation
             
             ## GSW overlay selection
-            ul_latlon = transform_point(ds_in.ul_lr[:2], old_epsg=ds_in.epsg, new_epsg=4326)
-            lr_latlon = transform_point(ds_in.ul_lr[-2:], old_epsg=ds_in.epsg, new_epsg=4326)
-            gsw_files = get_gswo_codes(gsw_dir, ul_latlon, lr_latlon)
+            gsw_files = get_gswo_codes(gsw_dir, 
+                                       ul_latlon, 
+                                       lr_latlon)
             print("\tGSWO file: %s" % gsw_files)
 
-            # Raw inference
-            static_display_out = nexout.replace(".tif", "_RapidMapping.png")
-            dtool.static_display(nexout, tmp_dir, gsw_files,  prod.date.strftime("%Y-%m-%d %H:%M:%S"), polar, 
-                                                            static_display_out, orbit, sat=sat, background=background) 
-                                              
-            # With post-processing
-            if post==1:
-                static_display_out = nexoutpost.replace(".tif", "_RapidMapping.png")
-                dtool.static_display(nexoutpost, tmp_dir, gsw_files,  prod.date.strftime("%Y-%m-%d %H:%M:%S"), polar, 
-                                                                static_display_out, orbit, sat=sat, background=background, post=post, rad=rad) 
+            static_display_out = outifpost.replace(".tif", ".png")
+            rapid_mapper.static_display(outifpost, 
+                                        tmp_dir, 
+                                        gsw_files,  
+                                        prod.date.strftime("%Y-%m-%d %H:%M:%S"), 
+                                        polar, 
+                                        static_display_out, 
+                                        orbit, 
+                                        sat=sat, 
+                                        background=background, 
+                                        rad=rad)
             
+            #### End rapid mapping map creation
+
+
+            ## ESA WC mask
+            # ESA worldcover retrieval and cropping
+            wc_array = RDF_tools.wc_classifier(tmp_dir, 
+                                               epsg, 
+                                               extent, 
+                                               wc_files, 
+                                               res=[abs(res[0]), abs(res[1])])
+            WCmask = wc_array.copy()
+            WCmask[:]=0
+            WCmask[wc_array==10]=2 #Forest
+            WCmask[wc_array==50]=4 #Urban
+
+            #####
+            ### Export inference post-processed + OCS 3 classes
+            outarray = outpost.copy(); 
+            outarray[:]= 0
+
+            # 1-Flood 2-Forest 3-Forest+Flood 4-Urban 5-Urban+Flood
+            outarray = outpost + WCmask 
+            if sat in ["s2", "l8", "l9"]: 
+                outarray[outpost==6] = 6 # Clouds
+                outarray[outpost==7] = 7 # Shadows
+
+            outarray[ds_in.array == 0]=255
+            if sat in ["s1", "s2", "l8", "l9"]: 
+                outif = os.path.join(dir_output, 
+                                     dirfile, 
+                                     'FM_{}_{}_{}_{}_OCS.tif'.format(prod.tile, 
+                                                                     date, 
+                                                                     sat.upper(), 
+                                                                     orbit))
+            elif sat in ["tsx"]: 
+                outif = os.path.join(dir_output, 
+                                     dirfile, 
+                                     'FM_{}_{}_{}_{}_{}_{}_OCS.tif'.format(sat.upper(), 
+                                                                           prod.type.upper(),
+                                                                           polar, 
+                                                                           basesplit[7], 
+                                                                           basesplit[8], 
+                                                                           orbit))
+
+            ds_out = GDalDatasetWrapper(array=np.array(outarray),
+                                        projection=ds_filename.projection,
+                                        geotransform=ds_filename.geotransform)
+            ds_out.write(outif, options=["COMPRESS=LZW"], nodata=255) 
+                      
             print(datetime.now()-start)
         
-    FileSystem.remove_directory(tmp_dir)       
-    FileSystem.remove_directory(tmp_in)
-    print("Inference finished ;)")
+        FileSystem.remove_directory(tmp_dir)       
+
+    print("Inference finished !")
 
 
 if __name__ == "__main__":
@@ -261,12 +411,12 @@ if __name__ == "__main__":
     parser.add_argument('-c', '--copdemdir', help='Copernicus DEM folder.'
                                                   'Either this or --meritdir has to be set for sentinel 1.',
                         type=str, required=False)
-    parser.add_argument('--satellite', help='s1, s2, l8 or tsx', type=str, required=True, choices=["s1", "s2", "l8", "tsx"])
+    parser.add_argument('-wc', '--wc_dir', help='ESA world cover directory', type=str, required=True)
+    parser.add_argument('--satellite', help='s1, s2, l8, l9 or tsx', type=str, required=True, choices=["s1", "s2", "l8", "l9", "tsx"])
     parser.add_argument('-db', '--db_path', help='Learning database filepath', type=str, required=True)
     parser.add_argument('-tmp', '--tmp_dir', help='Global DB output folder ', type=str, required=False, default="tmp")
     parser.add_argument('-g', '--gsw', help='Tiled GSW folder', type=str, required=True)
-    parser.add_argument('-p', '--post', help='Post-treatment to be applied to the output', type=int, required=False)
-    parser.add_argument('-r', '--rad', help='MAj filter radius', type=int, required=False)
+    parser.add_argument('-r', '--rad', help='Post-process MAj filter radius', type=int, required=False)
 
     arg = parser.parse_args()
 
