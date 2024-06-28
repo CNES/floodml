@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
 Project:        FloodML, CNES
 """
+
 
 
 from __future__ import print_function
@@ -45,7 +46,7 @@ def remove_file(filename):
         os.remove(filename)
     except OSError:
         log.debug("Cannot remove file %s" % filename)
-    return
+
 
 
 def remove_directory(directory):
@@ -146,74 +147,6 @@ def __get_return_code(proc, log_level):
     return proc.wait()
 
 
-def run_external_app(name, args, log_level=logging.DEBUG):
-    """
-    Run an external application using the subprocess module
-    :param name: the Name of the application
-    :param args: The list of arguments to run the app with
-    :param log_level: The log level for the messages displayed.
-    :return: The return code of the App
-    """
-    from timeit import default_timer as timer
-    import subprocess
-    full_args = [name] + args
-    cmd = " ".join(str(a) for a in full_args)
-    # Bug in conda: Windows path prepended in linux versions
-    env = os.environ.copy()
-    if os.name != "nt" and ";" in env["PATH"]:
-        env["PATH"] = env["PATH"].split(";")[1]
-    log.log(log_level, "Executing cmd: " + cmd)
-    start = timer()
-    try:
-        with subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env) as proc:
-            return_code = __get_return_code(proc, log_level=log_level)
-    except AttributeError:
-        # For Python 2.7, popen has no context manager:
-        proc = subprocess.Popen(cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
-        return_code = __get_return_code(proc, log_level=log_level)
-    if return_code:
-        raise subprocess.CalledProcessError(return_code, cmd)
-    end = timer()
-    # Show total execution time for the App:
-    log.log(log_level, "{0} took {1:.2f}s".format(os.path.basename(name), end - start))
-    return return_code
-
-
-def download_file(url, filepath, log_level=logging.DEBUG):
-    """
-    Download a single file using wget
-    :param filepath: The file name to be written to
-    :param url: The url to download
-    :param log_level: The log level for the messages displayed.
-    :return:
-    """
-    import tempfile
-    import shutil
-    tmp_file = tempfile.mktemp()
-    args = ["--retry-connrefused", "--waitretry=1",
-            "--read-timeout=20", "--timeout=15",
-            "-O", tmp_file, url]
-    if log_level != logging.DEBUG:
-        args.append("-nv")
-    ret_code = run_external_app("wget", args, log_level=log_level)
-    shutil.move(tmp_file, filepath)
-    return ret_code
-
-
-def unzip(archive, dest):
-    """
-    Unzip a file to the given destination
-    :param archive: The archive name
-    :param dest: The destination dir
-    :return:
-    """
-    # TODO Unittest
-    import zipfile
-    assert os.path.isfile(archive)
-    with zipfile.ZipFile(archive, 'r') as zip_ref:
-        zip_ref.extractall(dest)
-
-
 def find_in_file(filename, pattern):
     """
     Find a pattern inside a file
@@ -221,7 +154,6 @@ def find_in_file(filename, pattern):
     :param pattern: The pattern to be searched for
     :return: The pattern (if found). None if not.
     """
-    # TODO Unittest
     import re
     assert os.path.isfile(filename)
     with open(filename, "r") as f:
