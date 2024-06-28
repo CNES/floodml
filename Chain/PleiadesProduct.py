@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
@@ -16,7 +16,6 @@ from Chain.Product import MajaProduct
 from Common import FileSystem, ImageTools, XMLTools
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 from Common.FileSystem import symlink
-from prepare_mnt.mnt.SiteInfo import Site
 
 
 class PleiadesTheiaXS(MajaProduct):
@@ -84,18 +83,6 @@ class PleiadesTheiaXS(MajaProduct):
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
 
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = FileSystem.find(path=self._ms_folder, pattern=r"IMG_PHR*_P?MS*JP2")
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx, shape_index_y=1, shape_index_x=2)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "XS",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
@@ -108,7 +95,6 @@ class PleiadesTheiaXS(MajaProduct):
         FileSystem.create_directory(out_dir)
         # Get image
         ms_imgs = FileSystem.find(path=self._ms_folder, pattern=r"IMG_PHR*_P?MS*JP2")
-        # TODO Take all images into account
         ms_img = sorted(ms_imgs)[0]
         epsg = kwargs.get("epsg")
         if not epsg:
@@ -116,7 +102,6 @@ class PleiadesTheiaXS(MajaProduct):
                 drv = GDalDatasetWrapper.from_file(ms_img)
                 _ = drv.epsg
             except ValueError:
-                # TODO Find a way to add the WKT to the file.
                 FileSystem.remove_directory(out_dir)
                 return
         ms_bname = os.path.splitext(os.path.basename(ms_img))[0]
