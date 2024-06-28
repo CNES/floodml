@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
 Project:        FloodML, CNES
 """
+
 
 import os
 import re
@@ -15,7 +16,6 @@ from datetime import datetime, timedelta
 from Chain.Product import MajaProduct
 from Common import ImageIO, FileSystem, ImageTools, XMLTools, ImageApps
 from Common.FileSystem import symlink
-from prepare_mnt.mnt.SiteInfo import Site
 from Common.GDalDatasetWrapper import GDalDatasetWrapper
 
 
@@ -76,21 +76,6 @@ class Sentinel2Natif(MajaProduct):
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
 
-    @property
-    def mnt_site(self):
-        try:
-            band_b2 = FileSystem.find_single(pattern=r"*B0?2(_10m)?.jp2$", path=self.fpath)
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_b2)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "R1",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])},
-                {"name": "R2",
-                 "val": str(self.mnt_resolution[0] * 2) + " " + str(self.mnt_resolution[1] * 2)}]
-
     def get_synthetic_band(self, synthetic_band, **kwargs):
         output_folder = kwargs.get("wdir", os.path.join(self.fpath, "index"))
         output_bname = "_".join([self.base.split(".")[0], synthetic_band.upper() + ".tif"])
@@ -108,8 +93,6 @@ class Sentinel2Natif(MajaProduct):
             ds_ndvi = ImageApps.get_ndvi(ds_red, ds_nir, vrange=(-max_value, max_value), dtype=np.int16)
             ds_ndvi.write(output_filename, options=["COMPRESS=DEFLATE"])
         elif synthetic_band.lower() == "mndwi":
-            # TODO Check if the right bands are used
-            # TODO Resample to 10m?
             FileSystem.create_directory(output_folder)
             b3 = self.find_file(pattern=r"*B0?3(_10m)?.jp2$", depth=5)[0]
             b11 = self.find_file(pattern=r"*B11(_20m)?.jp2$", depth=5)[0]
@@ -201,21 +184,6 @@ class Sentinel2Muscate(MajaProduct):
     def link(self, link_dir):
         symlink(self.fpath, os.path.join(link_dir, self.base))
 
-    @property
-    def mnt_site(self):
-        try:
-            band_b2 = self.find_file(r"*B0?2*.tif")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_b2)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "R1",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])},
-                {"name": "R2",
-                 "val": str(self.mnt_resolution[0] * 2) + " " + str(self.mnt_resolution[1] * 2)}]
-
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
 
@@ -279,21 +247,6 @@ class Sentinel2SSC(MajaProduct):
         symlink(self.fpath, os.path.join(link_dir, self.base))
         mtd_file = self.metadata_file
         symlink(mtd_file, os.path.join(link_dir, os.path.basename(mtd_file)))
-
-    @property
-    def mnt_site(self):
-        try:
-            band_bx = self.find_file(pattern=r"*IMG*DBL.TIF")[0]
-        except IOError as e:
-            raise e
-        return Site.from_raster(self.tile, band_bx, shape_index_y=1, shape_index_x=2)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "R1",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])},
-                {"name": "R2",
-                 "val": str(self.mnt_resolution[0] * 2) + " " + str(self.mnt_resolution[1] * 2)}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         raise NotImplementedError
