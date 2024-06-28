@@ -1,14 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Copyright (C) CNES, CLS, SIRS - All Rights Reserved
+Copyright (C) CNES, CLS - All Rights Reserved
 This file is subject to the terms and conditions defined in
 file 'LICENSE.md', which is part of this source code package.
 
 Project:        FloodML, CNES
 """
-
-
 
 import os
 import re
@@ -17,7 +15,6 @@ from datetime import datetime
 from Chain.Product import MajaProduct
 from Common import ImageIO, FileSystem
 from Common.FileSystem import symlink
-from prepare_mnt.mnt.SiteInfo import Site
 
 
 class Sentinel1Tiled(MajaProduct):
@@ -91,14 +88,6 @@ class Sentinel1Tiled(MajaProduct):
         symlink(self._vv, os.path.join(link_dir, os.path.basename(self._vv)))
         symlink(self._vh, os.path.join(link_dir, os.path.basename(self._vh)))
 
-    @property
-    def mnt_site(self):
-        return Site.from_raster(self.tile, self._vv)
-
-    @property
-    def mnt_resolutions_dict(self):
-        return [{"name": "R1",
-                "val": str(self.mnt_resolution[0]) + " " + str(self.mnt_resolution[1])}]
 
     def get_synthetic_band(self, synthetic_band, **kwargs):
         wdir = kwargs.get("wdir", self.fpath)
