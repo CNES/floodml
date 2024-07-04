@@ -108,7 +108,11 @@ Ajout
 	Docs/CLS-ENV-NT-24-0400-Gestion_de_configuration.docx
 	Docs/FloodML_changelog.txt
 	Docs/FloodML_file_list.txt
-	
+	Launchers/RDF_inference_GPU_L8.slurm
+	Launchers/RDF_inference_GPU_S1.slurm
+	Launchers/RDF_inference_GPU_S2.slurm
+	Launchers/RDF_inference_GPU_TSX.slurm
+
 Modification
 	README.md
 	Dockerfile
