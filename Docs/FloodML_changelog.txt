@@ -112,6 +112,8 @@ Ajout
 	Launchers/RDF_inference_GPU_S1.slurm
 	Launchers/RDF_inference_GPU_S2.slurm
 	Launchers/RDF_inference_GPU_TSX.slurm
+	Docs/2024-09-24-flood-dam-dt-analysis-report.docx
+	Docs/24.415 Dossiers des Logiciels Réutilises v1.1.docx
 
 Modification
 	README.md
