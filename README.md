@@ -1,6 +1,4 @@
 <a><img title="Logo CNES" src="https://labo.obs-mip.fr/wp-content-labo/uploads/sites/19/2015/03/Logo-CNES-horizontal-bleu-300-e1425986175723.png" width="150"/></a>&emsp;
-<a><img title="Logo CLS" src="https://www.cls.fr/wp-content/themes/cls2/images/cls/cls-logo@x2.png" width="150" /></a>&emsp;
-<a><img title="Logo JPL" src="https://upload.wikimedia.org/wikipedia/commons/thumb/c/c6/Jet_Propulsion_Laboratory_logo.svg/320px-Jet_Propulsion_Laboratory_logo.svg.png" width="150" /></a>&emsp;
 
 # FloodML - Monitoring floods using Sentinel-1, Sentinel-2, Landsat 8, landsat 9 and TerraSAR-X data
 
