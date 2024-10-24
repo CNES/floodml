@@ -40,11 +40,12 @@ The following scripts are used for preprocessing, training and inference of both
 
 ## Copyright
 
-Initial work :
-* **Centre National d'Etudes Spatiales (CNES)**
-* **Collecte localisation Satellites (CLS)**
-* **Jet Propulsion Laboratory (JPL)**
+* Copyright 2020-2024, **Centre National d'Etudes Spatiales (CNES)**
 
 ## License
 
 This project is licensed under the ApacheV2 License - see the [LICENSE.md](LICENSE.md) file for details
+
+## Acknowledgements
+
+Thanks to JPL and CLS group for their contribution on the development of FloodML.
