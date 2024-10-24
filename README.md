@@ -36,6 +36,10 @@ The following scripts are used for preprocessing, training and inference of both
 * `RDF-2-training.py`: Runs the training algorithm
 * `RDF-3-inference.py`: Runs a prediction using the trained model and an image file
 
+### Trained models
+
+Trained models based on Sentinel 1 and Sentinel 2 data are only available on request
+
 ## Copyright
 
 * Copyright 2020-2024, **Centre National d'Etudes Spatiales (CNES)**
